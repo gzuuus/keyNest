@@ -25,13 +25,28 @@
 
 
 <AppShell>
-	<svelte:fragment slot="header">Header</svelte:fragment>
-	<svelte:fragment slot="sidebarLeft">Sidebar Left</svelte:fragment>
+	<svelte:fragment slot="header">
+	<AppBar>
+		<svelte:fragment slot="lead">(icon)</svelte:fragment>
+		<svelte:fragment slot="trail">(actions)</svelte:fragment>
+		<svelte:fragment slot="headline">(headline)</svelte:fragment>
+	</AppBar>
+	
+	</svelte:fragment>
+	<svelte:fragment slot="sidebarLeft">Sidebar Left
+
+	</svelte:fragment>
 	<!-- (sidebarRight) -->
 	<!-- (pageHeader) -->
 	<!-- Router Slot -->
-	<slot />
+	<div class=" bg-purple-400">
+		erferfe
+		
+		<slot />
+	</div>
 	<!-- ---- / ---- -->
-	<svelte:fragment slot="pageFooter">Page Footer</svelte:fragment>
+	<svelte:fragment slot="pageFooter">Page Footer
+
+	</svelte:fragment>
 	<!-- (footer) -->
 </AppShell>
