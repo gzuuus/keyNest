@@ -5,17 +5,16 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use nostr_sdk::prelude::*;
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-  println!("Message from Rust: {}", name);
-  format!("Hello, {}!", name)
-}
+const ACCOUNT_PATH: &str = "./accounts";
 
 #[tauri::command]
 fn read_file(name: &str) -> serde_json::Value {
   println!("Reading file: {}", name);
-  let mut file = File::open(name).expect("Failed to open file");
+  let file_path = Path::new(ACCOUNT_PATH).join(name);
+  let mut file = File::open(file_path).expect("Failed to open file");
+    // let mut file = File::open(accountpath/name).expect("Failed to open file");
   let mut contents = Vec::new();
   file.read_to_end(&mut contents).expect("Failed to read file");
 
@@ -23,26 +22,35 @@ fn read_file(name: &str) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn list_files() -> Vec<String> {
-  let path = Path::new(".");
-  let entries = fs::read_dir(path).expect("Failed to read directory");
-
-  let mut files = Vec::new();
-  for entry in entries {
-    let entry = entry.expect("Failed to read directory entry");
-    if entry.file_type().expect("Failed to get file type").is_file() {
-      let file_name = entry.file_name().to_str().expect("Failed to convert file name to string").to_owned();
-      if file_name.ends_with(".json") {
-        files.push(file_name);
-      }
+fn list_files() -> Option<Vec<String>> {
+    match fs::read_dir(ACCOUNT_PATH) {
+        Ok(entries) => {
+            let mut files = Vec::new();
+            for entry in entries {
+                match entry {
+                    Ok(entry) => {
+                        if entry.file_type().expect("Failed to get file type").is_file() {
+                            let file_name = entry.file_name().to_str().expect("Failed to convert file name to string").to_owned();
+                            if file_name.ends_with(".json") {
+                                files.push(file_name);
+                            }
+                        }
+                    },
+                    Err(_) => {}, // handle error here if needed
+                }
+            }
+            Some(files)
+        },
+        Err(_) => None, // return None if failed to read directory
     }
-  }
-  files
 }
 
-fn main() {
+
+#[tokio::main]
+async fn main() -> Result<()> {
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![greet, read_file, list_files])
+    .invoke_handler(tauri::generate_handler![read_file, list_files])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+  Ok(())
 }

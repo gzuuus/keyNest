@@ -1,0 +1,12 @@
+{
+    "user": "Random",
+    "pubkey": "fb58b6a961011146fa5f4fe1c8cb50d22aeae3f8c19c2e1c0ea70e1da39a4115",
+    "npub": "npub1ldvtd2tpqyg5d7jlflsu3j6s6g4w4clccxwzu8qw5u8pmgu6gy2sleqxtu",
+    "pkey": "gAAAAABlptFS8J2pGgfxuUlkc2RVKOAlRxViCHH_pwqf8TtSi-WJEPJBB3yP41OtcPrPUvhjnqrWvW8opUxAD2ZSG91UydXYnx4F9SVS8TFfBgo7U1GbbdUcyixZIea7ofViGtiCLRL_K72ay7PGveIiteRK2K3QLaRI7cEN5VjgEKHCTTOIF_U=",
+    "scrypt": {
+        "salt": "_QVxUrQZXNQMqbu-LPtQ4cx7rN7pZrHxlfofvhUpimQ=",
+        "n": 16384,
+        "r": 8,
+        "p": 1
+    }
+}

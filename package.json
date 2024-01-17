@@ -48,6 +48,9 @@
   "type": "module",
   "dependencies": {
     "@floating-ui/dom": "1.5.4",
+    "@nostr-dev-kit/ndk": "^2.3.3",
+    "@nostr-dev-kit/ndk-svelte": "^2.2.4",
+    "@tauri-apps/api": "^1.5.3",
     "highlight.js": "11.9.0"
   }
 }
