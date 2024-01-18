@@ -4,7 +4,6 @@
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::io::Write;
 use std::path::Path;
 use nostr_sdk::prelude::*;
 
@@ -49,7 +48,7 @@ fn list_files() -> Option<Vec<String>> {
 #[tauri::command]
 fn write_json(name: &str, data: serde_json::Value) {
     let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
-    let mut file = File::create(file_path).unwrap();
+    let file = File::create(file_path).unwrap();
     serde_json::to_writer_pretty(&file, &data).unwrap();
 }
 
