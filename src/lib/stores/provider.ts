@@ -1,8 +1,8 @@
-import { writable } from "svelte/store";
-import type { NDKCacheAdapter } from "@nostr-dev-kit/ndk";
+import { writable } from 'svelte/store';
+import type { NDKCacheAdapter } from '@nostr-dev-kit/ndk';
 // import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
-import { browser } from "$app/environment";
-import NDKSvelte from "@nostr-dev-kit/ndk-svelte";
+import { browser } from '$app/environment';
+import NDKSvelte from '@nostr-dev-kit/ndk-svelte';
 
 let cacheAdapter: NDKCacheAdapter | undefined;
 
@@ -14,20 +14,20 @@ let cacheAdapter: NDKCacheAdapter | undefined;
 // }
 
 export const defaulRelaysUrls: string[] = [
-  "wss://purplepag.es",
-  "wss://relay.nostr.band",
-  "wss://nos.lol",
-  "wss://offchain.pub/",
-  "wss://nostr-pub.wellorder.net",
-  "wss://nostr.mutinywallet.com ",
+	'wss://purplepag.es',
+	'wss://relay.nostr.band',
+	'wss://nos.lol',
+	'wss://offchain.pub/',
+	'wss://nostr-pub.wellorder.net',
+	'wss://nostr.mutinywallet.com '
 ];
 
 const ndk = new NDKSvelte({
-  explicitRelayUrls: defaulRelaysUrls,
-  enableOutboxModel: false,
+	explicitRelayUrls: defaulRelaysUrls,
+	enableOutboxModel: false
 });
 
-ndk.connect().then(() => console.log("ndk connected successfully"));
+ndk.connect().then(() => console.log('ndk connected successfully'));
 
 const ndkStore = writable(ndk);
 

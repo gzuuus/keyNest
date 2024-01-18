@@ -6,8 +6,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use nostr_sdk::prelude::*;
+use std::fs::{ OpenOptions };
 
-const ACCOUNT_PATH: &str = "./accounts";
+const ACCOUNT_PATH: &str = "./";
 
 #[tauri::command]
 fn read_file(name: &str) -> serde_json::Value {
@@ -31,7 +32,7 @@ fn list_files() -> Option<Vec<String>> {
                     Ok(entry) => {
                         if entry.file_type().expect("Failed to get file type").is_file() {
                             let file_name = entry.file_name().to_str().expect("Failed to convert file name to string").to_owned();
-                            if file_name.ends_with(".json") {
+                            if file_name.ends_with(".json") && !file_name.ends_with(".conf.json") {
                                 files.push(file_name);
                             }
                         }
@@ -45,17 +46,29 @@ fn list_files() -> Option<Vec<String>> {
     }
 }
 
-#[tauri::command]
-fn write_json(name: &str, data: serde_json::Value) {
-    let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
-    let file = File::create(file_path).unwrap();
-    serde_json::to_writer_pretty(&file, &data).unwrap();
-}
+ #[tauri::command]
+ fn write_json(name: &str, data: serde_json::Value) -> bool {
+     let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
+     let file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path.to_str().unwrap()).unwrap();
+     serde_json::to_writer_pretty(&file, &data).unwrap();
+     true
+ }
 
+ #[tauri::command]
+ fn delete_file_by_name(filename: &str) -> bool {
+     println!("Deleting file: {}", filename);
+     let file_path = Path::new(ACCOUNT_PATH).join(filename);
+ 
+     match fs::remove_file(&file_path) {
+         Ok(_) => true,
+         Err(_) => false,
+     }
+ }
+ 
 #[tokio::main]
 async fn main() -> Result<()> {
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![read_file, list_files, write_json])
+    .invoke_handler(tauri::generate_handler![read_file, list_files, write_json, delete_file_by_name])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
   Ok(())

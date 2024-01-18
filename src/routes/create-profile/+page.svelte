@@ -1,5 +1,5 @@
 <script>
-	import CreateProfile from "$lib/components/create-profile.svelte";
-
+	import CreateProfile from '$lib/components/create-profile.svelte';
 </script>
-<CreateProfile/>
+
+<CreateProfile />
