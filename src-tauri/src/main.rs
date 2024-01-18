@@ -4,6 +4,7 @@
 use std::fs;
 use std::fs::File;
 use std::io::Read;
+use std::io::Write;
 use std::path::Path;
 use nostr_sdk::prelude::*;
 
@@ -45,11 +46,17 @@ fn list_files() -> Option<Vec<String>> {
     }
 }
 
+#[tauri::command]
+fn write_json(name: &str, data: serde_json::Value) {
+    let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
+    let mut file = File::create(file_path).unwrap();
+    serde_json::to_writer_pretty(&file, &data).unwrap();
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![read_file, list_files])
+    .invoke_handler(tauri::generate_handler![read_file, list_files, write_json])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
   Ok(())

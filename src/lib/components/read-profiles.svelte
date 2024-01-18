@@ -4,7 +4,8 @@
 	import ProfileIcon from '$lib/resources/icons/profile-icon.svelte';
 	import CreateProfile from './create-profile.svelte';
 	import { goto } from '$app/navigation';
-    let content: any;
+	import type { ProfileJsonInterface } from '$lib/types/profile-json-interface';
+    let content: ProfileJsonInterface;
     let fileList: string[];
 
     async function read(name: string) {
