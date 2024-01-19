@@ -6,7 +6,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use nostr_sdk::prelude::*;
-use std::fs::{ OpenOptions };
+use std::fs::OpenOptions;
+use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 
 const ACCOUNT_PATH: &str = "./";
 
@@ -64,12 +65,27 @@ fn list_files() -> Option<Vec<String>> {
          Err(_) => false,
      }
  }
+
+ #[tauri::command]
+ fn encrypt_string(to_encrypt: &str, key: &str) -> String {
+    println!("Encrypting string: {}", to_encrypt);
+    let mc = new_magic_crypt!(key, 256);
+    let cypher_text =mc.encrypt_str_to_base64(to_encrypt);
+    cypher_text
+ }
+
+ #[tauri::command]
+ fn decrypt_cypher(to_decrypt: &str, key: &str) -> String {
+    let mc = new_magic_crypt!(key, 256);
+    let plain_text =mc.decrypt_base64_to_string(to_decrypt).unwrap();
+    plain_text
+ }
  
 #[tokio::main]
 async fn main() -> Result<()> {
-  tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![read_file, list_files, write_json, delete_file_by_name])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
-  Ok(())
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![read_file, list_files, write_json, delete_file_by_name, encrypt_string, decrypt_cypher])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+    Ok(())
 }

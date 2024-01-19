@@ -48,7 +48,10 @@
 <Toast />
 <Modal />
 <AppShell>
-	<svelte:fragment slot="header">{$page.url.href}</svelte:fragment>
+	<svelte:fragment slot="header">
+		{$page.url.href}
+		<button on:click={()=> goto('/test')}>Create Profile</button>
+	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
 		{#if $fileStore != undefined}
 			<AppRail>
