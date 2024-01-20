@@ -21,6 +21,7 @@ tauri = { version = "1.5.4", features = [] }
 nostr-sdk = "*"
 tokio = { version = "1", features = ["full"] }
 magic-crypt = "3.1.13"
+bitcoin = { version = "0.31.1" }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

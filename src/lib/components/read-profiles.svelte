@@ -1,41 +1,11 @@
 <script lang="ts">
-	import { invoke } from '@tauri-apps/api/tauri';
-	import { currentProfile, fileStore } from '$lib/stores/stores';
 	import ProfileIcon from '$lib/resources/icons/profile-icon.svelte';
 	import { goto } from '$app/navigation';
-	import type { ProfileJsonInterface, RootPInterface } from '$lib/types/profile-json-interface';
 	import { onMount } from 'svelte';
 	import BinIcon from '$lib/resources/icons/bin-icon.svelte';
-	let content: RootPInterface;
+	import { deleteFile, listFiles, read } from '$lib/resources/helpers';
 	let fileList: string[] | undefined;
 
-	async function read(name: string) {
-		content = await invoke('read_file', { name });
-		console.log(content);
-		currentProfile.set(content);
-	}
-
-	async function deleteFile(fileName: string) {
-		try {
-			let deleteFile = await invoke('delete_file_by_name', { filename: fileName });
-			if (deleteFile) listFiles();
-		} catch (error) {
-			console.log(error);
-		}
-	}
-	async function listFiles(): Promise<string[] | undefined> {
-		fileList = await invoke('list_files');
-		console.log(fileList);
-		if (fileList!.length) {
-			fileStore.set(fileList);
-			return fileList;
-		} else if (fileList!.length == 0) {
-			console.log('no files');
-			goto('/create-profile');
-			fileStore.set(undefined);
-			return undefined;
-		}
-	}
 	onMount(async () => {
 		fileList = await listFiles();
 		fileList ? goto('/') : goto('/create-profile');

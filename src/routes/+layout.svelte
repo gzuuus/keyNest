@@ -20,9 +20,9 @@
 	currentProfile.subscribe(setProfile);
 	async function setProfile() {
 		console.log($currentProfile);
-		goto(`/account`);
+		goto(`/p/account`);
 	}
-	
+
 	// Highlight JS
 	// import hljs from 'highlight.js/lib/core';
 	// import 'highlight.js/styles/github-dark.css';
@@ -49,8 +49,8 @@
 <Modal />
 <AppShell>
 	<svelte:fragment slot="header">
-		{$page.url.href}
-		<button on:click={()=> goto('/test')}>Create Profile</button>
+		<button on:click={() => goto('/')}>Home</button>
+		<button on:click={() => goto('/test')}>test</button>
 	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
 		{#if $fileStore != undefined}
@@ -59,16 +59,17 @@
 					<svelte:fragment slot="lead"><HouseIcon size={18} /></svelte:fragment>
 					<span>Home</span>
 				</AppRailAnchor>
-
-				<AppRailAnchor href="/account" selected={$page.url.pathname === '/account'}>
-					<svelte:fragment slot="lead"><ProfileIcon size={18} /></svelte:fragment>
-					<span>Account</span>
-				</AppRailAnchor>
+				{#if $currentProfile}
+					<AppRailAnchor href="/p/account" selected={$page.url.pathname === '/p/account'}>
+						<svelte:fragment slot="lead"><ProfileIcon size={18} /></svelte:fragment>
+						<span>Account</span>
+					</AppRailAnchor>
+				{/if}
 			</AppRail>
 		{/if}
 	</svelte:fragment>
 	<div class=" grid place-content-center h-full">
 		<slot />
 	</div>
-	<svelte:fragment slot="pageFooter">Page Footer</svelte:fragment>
+	<svelte:fragment slot="pageFooter">{$page.url.href}</svelte:fragment>
 </AppShell>

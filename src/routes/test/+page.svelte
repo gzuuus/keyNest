@@ -1,21 +1,13 @@
 <script lang="ts">
-    import { invoke } from "@tauri-apps/api";
+	import { calculateXprvFromSeed, decrypt, derive_child_xprv_from_xprv } from "$lib/resources/helpers";
+	import { currentProfile } from "$lib/stores/stores";
+	import { onMount } from "svelte";
 
-    async function encrypt(to_encrypt: string, key:string): Promise<string> {
-      let encrypted: string = await invoke('encrypt_string', { toEncrypt: to_encrypt, key: key })
-      return encrypted
-    }
-
-    async function decrypt(to_decrypt: string, key:string): Promise<string> {
-      let decrypted: string = await invoke('decrypt_cypher', { toDecrypt: to_decrypt, key: key })
-      return decrypted
-    }
-
-
+  onMount(async () => {
+    if (!$currentProfile) return
+    let seed = await decrypt($currentProfile?.prvk, '123')
+    let xprv = await calculateXprvFromSeed(seed!)
+    let childXprv = await derive_child_xprv_from_xprv(xprv, 30)
+    console.log(seed, xprv, childXprv)
+  })
 </script>
-{#await encrypt("Heelooooooooo", "test") then value }
-    {value}    
-{/await}
-{#await decrypt("DAJVpJUlJ0TIHF82BEW/zA==", "test") then value }
-    {value}    
-{/await}
