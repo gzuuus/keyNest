@@ -68,7 +68,7 @@
 			</AppRail>
 		{/if}
 	</svelte:fragment>
-	<div class=" grid place-content-center h-full">
+	<div class=" grid place-content-center h-full w-auto">
 		<slot />
 	</div>
 	<svelte:fragment slot="pageFooter">{$page.url.href}</svelte:fragment>

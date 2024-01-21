@@ -9,7 +9,6 @@ export async function writeFile(name: string, data: any): Promise<boolean> {
 
 export async function read(name: string): Promise<RootPInterface> {
 	let content: RootPInterface = await invoke('read_file', { name });
-	console.log(content);
 	currentProfile.set(content);
 	return content;
 }
@@ -26,13 +25,13 @@ export async function deleteFile(fileName: string) {
 export async function listFiles(): Promise<string[] | undefined> {
 	let fileList: string[] = await invoke('list_files');
 	console.log(fileList);
-	if (fileList!.length) {
+	if (fileList) {
 		fileStore.set(fileList);
 		return fileList;
-	} else if (fileList!.length == 0) {
+	} else if (fileList! == null) {
 		console.log('no files');
 		goto('/create-profile');
-		fileStore.set(undefined);
+		fileStore.set(null);
 		return undefined;
 	}
 }
@@ -48,7 +47,6 @@ export async function decrypt(
 ): Promise<string | undefined> {
 	if (!to_decrypt) return undefined;
 	let decrypted: string = await invoke('decrypt_cypher', { toDecrypt: to_decrypt, key: key });
-	console.log(decrypted);
 	return decrypted;
 }
 
@@ -93,4 +91,9 @@ export function uint8ArrayTo32HexString(uint8Array: Uint8Array): string {
 		.map((b) => b.toString(16).padStart(2, '0'))
 		.slice(0, 32)
 		.join('');
+}
+
+export function logOut() {
+	currentProfile.set(undefined);
+	goto('/')
 }

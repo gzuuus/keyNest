@@ -1,20 +1,51 @@
 <script lang="ts">
-	import { decrypt, derive_child_pub_from_xpub } from '$lib/resources/helpers';
+	import { decrypt, derive_child_pub_from_xpub, logOut } from '$lib/resources/helpers';
 	import { currentProfile } from '$lib/stores/stores';
+	import { getToastStore } from '@skeletonlabs/skeleton';
+	const toastStore = getToastStore();
+
+	let prvk: string | undefined
+	let password: string
+	let showLogin: boolean;
+
+	$: if ($currentProfile) {
+		showLogin = true;
+	}
+
+	async function handleLogin() {
+		try {
+			prvk = await decrypt($currentProfile?.prvk, password);
+			toastStore.trigger({
+				message: 'Logged in',
+				background: 'variant-filled-success'
+
+			})
+		} catch (e) {
+			toastStore.trigger({
+				message: 'Incorrect password',
+				background: 'variant-filled-error'
+
+			})
+		}
+
+	}
 </script>
 
-{#if $currentProfile}
-	<div class="card p-4">
+{#if showLogin}
+	<div class="break-words">
 		<h1 class="h2">{$currentProfile?.name}</h1>
-		<section class=" max-w-sm">
-			<pre class=" whitespace-pre-wrap break-words">{JSON.stringify($currentProfile, null, 2)}</pre>
-		</section>
-		<button class="common-btn-sm-filled" on:click={() => decrypt($currentProfile?.prvk, '123')}
-			>Decrypt</button
-		>
+		{#if !prvk}
+		<form class="flex flex-col gap-2" on:submit|preventDefault={() => console.log('')}>
+		<input class="input" bind:value={password} id="password" type="password" placeholder="Password"/>
+		<button type="submit" class="common-btn-sm-filled" on:click={() => handleLogin()}>Login</button>
+		</form>
+		{:else}
+		<h2>{$currentProfile?.npub}</h2>
 		<button
 			class="common-btn-sm-filled"
 			on:click={() => derive_child_pub_from_xpub($currentProfile?.xpub ?? '', 2)}>Derive</button
 		>
+		<button class="common-btn-sm-ghost-error" on:click={() => logOut()}>Log Out</button>
+		{/if}
 	</div>
 {/if}

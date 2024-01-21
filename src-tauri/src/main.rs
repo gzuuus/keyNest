@@ -22,7 +22,7 @@ use bitcoin::hex::FromHex;
 use bitcoin::secp256k1::ffi::types::AlignedType;
 use bitcoin::secp256k1::Secp256k1;
 
-const ACCOUNT_PATH: &str = "./";
+const ACCOUNT_PATH: &str = "./.nostr_accounts";
 
 #[tauri::command]
 fn read_file(name: &str) -> serde_json::Value {
@@ -61,11 +61,22 @@ fn list_files() -> Option<Vec<String>> {
 
  #[tauri::command]
  fn write_json(name: &str, data: serde_json::Value) -> bool {
-     let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
-     let file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path.to_str().unwrap()).unwrap();
-     serde_json::to_writer_pretty(&file, &data).unwrap();
-     true
- }
+    let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
+    if !file_path.exists() {
+        fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+    }
+
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(file_path.to_str().unwrap())
+        .unwrap();
+
+    serde_json::to_writer_pretty(&file, &data).unwrap();
+
+    true
+}
 
  #[tauri::command]
  fn delete_file_by_name(filename: &str) -> bool {
@@ -86,11 +97,13 @@ fn list_files() -> Option<Vec<String>> {
  }
 
  #[tauri::command]
- fn decrypt_cypher(to_decrypt: &str, key: &str) -> String {
+fn decrypt_cypher(to_decrypt: &str, key: &str) -> Result<String, String> {
     let mc = new_magic_crypt!(key, 256);
-    let plain_text =mc.decrypt_base64_to_string(to_decrypt).unwrap();
-    plain_text
- }
+    match mc.decrypt_base64_to_string(to_decrypt) {
+        Ok(plain_text) => Ok(plain_text),
+        Err(e) => Err(format!("Decryption failed: {}", e)),
+    }
+}
 
 // Bip32 example https://github.com/rust-bitcoin/rust-bitcoin/blob/0.31.x/bitcoin/examples/bip32.rs
 

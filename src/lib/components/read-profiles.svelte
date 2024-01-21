@@ -24,7 +24,7 @@
 							<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
 								<button on:click={() => read(file)}>
 									<span class="badge bg-primary-500"><ProfileIcon size={22} /></span>
-									<span class="flex-auto">{file}</span>
+									<span class="flex-auto">{file.slice(0, -5)}</span>
 								</button>
 								<button class="btn btn-sm btn-error" on:click={() => deleteFile(file)}
 									><BinIcon size={16} /></button

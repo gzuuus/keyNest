@@ -7,11 +7,13 @@ export interface RootPInterface {
 	scope: number;
 }
 
-export interface ChildPInterface {
+// TODO! change this for a more flexible interface
+export interface ProfileInterface {
 	name: string;
 	npub: string;
-	xpub: string;
+	xpub?: string;
 	prvk: string;
-	level: number;
-	scope: number;
-}
+	level?: number;
+	scope?: number;
+  }
+  
