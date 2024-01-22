@@ -27,6 +27,22 @@ export async function read(name: string): Promise<ProfileInterface> {
 	return content;
 }
 
+export async function getRootbyColumnAndValue(dbName: string, column: string, value: string): Promise<ProfileInterface[]> {
+    let content: ProfileInterface[] = await invoke("get_root_identity_by_column_and_value", { 
+      dbName: dbName,
+      column: column,
+      value: value
+    });
+    currentProfile.set(content[0]);
+	return content;
+  }
+
+export async function readDb(dbName: string) {
+    let content: ProfileInterface[] = await invoke("get_all_identities", { 
+      dbName: dbName,
+    });
+  }
+
 export async function deleteFile(fileName: string): Promise<boolean> {
 	try {
 		let deleteFile = await invoke('delete_file_by_name', { filename: fileName });
@@ -78,10 +94,31 @@ export async function derive_child_pub_from_xpub(
 		childIndex: child_index
 	});
 	derived = derived.substring(2);
-	console.log(derived);
 	return derived;
 }
-
+//insert_into_db(db_name: &str, name: &str, npub: &str, xpub: &str, prvk: &str, level: &str, gap: &str, parent: &str)
+// TODO!
+export async function insertDerivedChild(
+	db_name: string,
+	pubk: string,
+): Promise<boolean> {
+	try {
+		let derived: boolean = await invoke('insert_into_db', {
+			dbName: db_name,
+			name: 'derived',
+			npub: pubk,
+			xpub: '',
+			prvk: '',
+			level: '1',
+			gap: '0',
+			parent: ''
+		});
+		return true;
+	} catch (error) {
+		console.log(error);
+		return false;
+	}
+}
 export async function derive_child_xprv_from_xprv(
 	xprv: string,
 	child_index: number

@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import BinIcon from '$lib/resources/icons/bin-icon.svelte';
-	import { deleteFile, listFiles, read } from '$lib/resources/helpers';
+	import { deleteFile, getRootbyColumnAndValue, listFiles } from '$lib/resources/helpers';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 	const toastStore = getToastStore();
 	let fileList: string[] | undefined;
@@ -41,7 +41,7 @@
 					{#each fileList as file}
 						<li>
 							<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
-								<button on:click={() => read(file)}>
+								<button on:click={() => getRootbyColumnAndValue(file, 'name', file.slice(0, -3))}>
 									<span class="badge bg-primary-500"><ProfileIcon size={22} /></span>
 									<span class="flex-auto">{file.slice(0, -3)}</span>
 								</button>

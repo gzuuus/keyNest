@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { decrypt, derive_child_pub_from_xpub, logOut } from '$lib/resources/helpers';
+	import { decrypt, derive_child_pub_from_xpub, insertDerivedChild, logOut } from '$lib/resources/helpers';
 	import { currentProfile } from '$lib/stores/stores';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 	const toastStore = getToastStore();
@@ -10,6 +10,7 @@
 
 	$: if ($currentProfile) {
 		showLogin = true;
+		console.log("currentProfile", $currentProfile.name)
 	}
 
 	async function handleLogin() {
@@ -20,6 +21,7 @@
 				background: 'variant-filled-success'
 
 			})
+			password = '';
 		} catch (e) {
 			toastStore.trigger({
 				message: 'Incorrect password',
@@ -28,6 +30,12 @@
 			})
 		}
 
+	}
+
+	async function handleDerive() {
+		let derivedKey = await derive_child_pub_from_xpub($currentProfile?.xpub!, 0);
+		let insertKey = await insertDerivedChild(`${$currentProfile?.name!}.db`, derivedKey);
+		console.log(derivedKey, insertKey);
 	}
 </script>
 
@@ -43,7 +51,7 @@
 		<h2>{$currentProfile?.npub}</h2>
 		<button
 			class="common-btn-sm-filled"
-			on:click={() => derive_child_pub_from_xpub($currentProfile?.xpub ?? '', 2)}>Derive</button
+			on:click={() => handleDerive()}>Derive</button
 		>
 		<button class="common-btn-sm-ghost-error" on:click={() => logOut()}>Log Out</button>
 		{/if}

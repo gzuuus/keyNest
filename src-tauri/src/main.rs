@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::InvokeError;
+use serde::{Serialize, Deserialize};
 // FS
 use std::fs;
 use std::fs::File;
@@ -173,7 +174,7 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
 
 #[tauri::command]
 fn insert_into_db(db_name: &str, name: &str, npub: &str, xpub: &str, prvk: &str, level: &str, gap: &str, parent: &str) -> bool {
-    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
     conn.execute(
         "CREATE TABLE IF NOT EXISTS identity (
@@ -206,6 +207,7 @@ fn account_count(db_name: &str) -> Result<usize, InvokeError> {
     Ok(count)
 }
 
+#[derive(Serialize, Deserialize)]
 struct Identity {
     id: i32,
     name: String,
@@ -219,11 +221,12 @@ struct Identity {
 
 // TODO: fix this, make it flexible
 #[tauri::command]
-fn query_identity(db_name: &str,) {
-    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+fn get_root_identity_by_column_and_value(db_name: &str, column: &str, value: &str) -> Result<Vec<Identity>, InvokeError> {
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
-    let mut stmt = conn.prepare("SELECT * FROM identity WHERE name = 'hello';").unwrap();
-    let identity_iter = stmt.query_map([], |row| {
+    let render_query = format!("SELECT * FROM identity WHERE {} = '{}' AND level = '0';", column, value);
+    let mut stmt = conn.prepare(&render_query).unwrap();
+    let identity_iter = match stmt.query_map([], |row| {
         Ok(Identity {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -234,18 +237,69 @@ fn query_identity(db_name: &str,) {
             gap: row.get(6)?,
             parent: row.get(7)?,
         })
-    }).unwrap();
+    }) {
+        Ok(identity_iter) => identity_iter,
+        Err(e) => return Err(InvokeError::from(format!("Error querying database: {}", e))),
+    };
+    let mut identities = Vec::new();
     for identity in identity_iter {
         let identity = identity.unwrap();
-        println!("Found identity: id={}, name={}, npub={}, xpub={}, prvk={}, level={}, gap={}, parent={}", 
-                 identity.id, identity.name, identity.npub, identity.xpub, identity.prvk, identity.level, identity.gap, identity.parent);
+        identities.push(identity);
     }
+    Ok(identities)
+
+}
+
+#[tauri::command]
+fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) -> Result<Vec<Identity>, InvokeError> {
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let conn = Connection::open(render_db_name).unwrap();
+    let render_query = format!("SELECT * FROM identity WHERE {} = '{}';", column, value);
+    let mut stmt = conn.prepare(&render_query).unwrap();
+    let identity = match stmt.query_row([], |row| {
+        Ok(Identity {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            npub: row.get(2)?,
+            xpub: row.get(3)?,
+            prvk: row.get(4)?,
+            level: row.get(5)?,
+            gap: row.get(6)?,
+            parent: row.get(7)?,
+        })
+    }) {
+        Ok(identity) => identity,
+        Err(e) => return Err(InvokeError::from(format!("Error querying database: {}", e))),
+    };
+    Ok(vec![identity])
+}
+
+#[tauri::command]
+fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let conn = Connection::open(render_db_name).unwrap();
+    let render_query = format!("SELECT * FROM identity WHERE level != '0';");
+    let mut stmt = conn.prepare(&render_query).unwrap();
+    let identity = match stmt.query_row([], |row| {
+        Ok(Identity {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            npub: row.get(2)?,
+            xpub: row.get(3)?,
+            prvk: row.get(4)?,
+            level: row.get(5)?,
+            gap: row.get(6)?,
+            parent: row.get(7)?,
+        })
+    }) {
+        Ok(identity) => identity,
+        Err(e) => return Err(InvokeError::from(format!("Error querying database: {}", e))),
+    };
+    Ok(vec![identity])
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // open_db("db_try.db");
-    // query_identity("hello");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             read_file, 
@@ -260,6 +314,9 @@ async fn main() -> Result<()> {
             derive_child_xprv_from_xprv,
             insert_into_db,
             account_count,
+            get_root_identity_by_column_and_value,
+            get_identities_by_column_and_value,
+            get_all_identities
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
