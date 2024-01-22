@@ -4,7 +4,26 @@
 	import { onMount } from 'svelte';
 	import BinIcon from '$lib/resources/icons/bin-icon.svelte';
 	import { deleteFile, listFiles, read } from '$lib/resources/helpers';
+	import { getToastStore } from '@skeletonlabs/skeleton';
+	const toastStore = getToastStore();
 	let fileList: string[] | undefined;
+
+	async function handleDeleteFile(file: string): Promise<boolean> {
+		const deleted = await deleteFile(file);
+		if (deleted) {
+			toastStore.trigger({
+				message: 'Profile deleted',
+				background: 'variant-filled-success'
+			})
+			return true;
+		} else {
+			toastStore.trigger({
+				message: 'Error deleting profile',
+				background: 'variant-filled-error'
+			})
+			return false;
+		}
+	}
 
 	onMount(async () => {
 		fileList = await listFiles();
@@ -24,9 +43,9 @@
 							<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
 								<button on:click={() => read(file)}>
 									<span class="badge bg-primary-500"><ProfileIcon size={22} /></span>
-									<span class="flex-auto">{file.slice(0, -5)}</span>
+									<span class="flex-auto">{file.slice(0, -3)}</span>
 								</button>
-								<button class="btn btn-sm btn-error" on:click={() => deleteFile(file)}
+								<button class="btn btn-sm btn-error" on:click={() => handleDeleteFile(file)}
 									><BinIcon size={16} /></button
 								>
 							</div>

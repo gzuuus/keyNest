@@ -2,11 +2,9 @@
 	import '../app.postcss';
 	import {
 		AppShell,
-		AppBar,
 		AppRail,
 		AppRailAnchor,
 		Toast,
-		getToastStore,
 		Modal
 	} from '@skeletonlabs/skeleton';
 	import ndk from '$lib/stores/provider';
@@ -53,7 +51,7 @@
 		<button on:click={() => goto('/test')}>test</button>
 	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
-		{#if $fileStore != undefined}
+		{#if $fileStore?.length}
 			<AppRail>
 				<AppRailAnchor href="/" selected={$page.url.pathname === '/'}>
 					<svelte:fragment slot="lead"><HouseIcon size={18} /></svelte:fragment>

@@ -2,12 +2,13 @@
 	import { calculateXprvFromSeed, decrypt, derive_child_xprv_from_xprv } from "$lib/resources/helpers";
 	import { currentProfile } from "$lib/stores/stores";
 	import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api";
 
-  onMount(async () => {
-    if (!$currentProfile) return
-    let seed = await decrypt($currentProfile?.prvk, '123')
-    let xprv = await calculateXprvFromSeed(seed!)
-    let childXprv = await derive_child_xprv_from_xprv(xprv, 30)
-    console.log(seed, xprv, childXprv)
-  })
+  async function test() {
+    let executeDb = await invoke("root_name", { 
+      dbName: "hello",
+    });
+    console.log(executeDb);
+  }
 </script>
+<button on:click={test}>Try test</button>

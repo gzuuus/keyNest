@@ -1,13 +1,13 @@
 <script lang="ts">
 	import AddFileIcon from '$lib/resources/icons/add-file-icon.svelte';
-	import type { RootPInterface } from '$lib/types/profile-json-interface';
+	import type { ProfileInterface } from '$lib/types/profile-json-interface';
 	import { FileDropzone, focusTrap } from '@skeletonlabs/skeleton';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 	import { goto } from '$app/navigation';
 	import { object, string } from 'zod';
 	import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 	import CloseIcon from '$lib/resources/icons/close-icon.svelte';
-	import { calculateXpubFromSeed, encrypt, writeFile } from '$lib/resources/helpers';
+	import { calculateXpubFromSeed, encrypt, insertInDb, writeFile } from '$lib/resources/helpers';
 
 	export const rootPSchema = object({
 		name: string(),
@@ -37,7 +37,7 @@
 						const fileContent = event.target?.result;
 						if (typeof fileContent === 'string') {
 							try {
-								const data: RootPInterface = JSON.parse(fileContent);
+								const data: ProfileInterface = JSON.parse(fileContent);
 								console.log(data);
 								const writeFiles = await writeFile(data.name, data);
 								writeFiles
@@ -102,16 +102,19 @@
 			xpub: xpub,
 			prvk: encryptedNsec,
 			level: 0,
-			scope: 0
+			scope: 0,
+			gap: 0,
+			parent: ''
 		};
 
 		if (!validateFormData()) return;
 		try {
 			const formValues = Object.fromEntries(
 				Object.entries(extendedFormData).map(([key, val]) => [key, readonlyValue(val)])
-			) as Readonly<Record<keyof RootPInterface, unknown>>;
+			) as Readonly<Record<keyof ProfileInterface, unknown>>;
 			console.log(formValues);
-			let craftFile = await writeFile(formData.name!, formValues);
+			// let craftFile = await writeFile(formData.name!, formValues);
+			let craftFile = await insertInDb(formData.name!, formValues);
 			console.log(craftFile);
 			createNew = false;
 			goto('/');

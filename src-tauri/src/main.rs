@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use tauri::InvokeError;
 // FS
 use std::fs;
 use std::fs::File;
@@ -21,6 +22,9 @@ use bitcoin::bip32::{ChildNumber, DerivationPath, Xpriv, Xpub};
 use bitcoin::hex::FromHex;
 use bitcoin::secp256k1::ffi::types::AlignedType;
 use bitcoin::secp256k1::Secp256k1;
+
+// DB
+use rusqlite::{Connection, Result};
 
 const ACCOUNT_PATH: &str = "./.nostr_accounts";
 
@@ -45,7 +49,7 @@ fn list_files() -> Option<Vec<String>> {
                     Ok(entry) => {
                         if entry.file_type().expect("Failed to get file type").is_file() {
                             let file_name = entry.file_name().to_str().expect("Failed to convert file name to string").to_owned();
-                            if file_name.ends_with(".json") && !file_name.ends_with(".conf.json") {
+                            if file_name.ends_with(".db") {
                                 files.push(file_name);
                             }
                         }
@@ -167,9 +171,81 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
    xpub_string
 }
 
+#[tauri::command]
+fn insert_into_db(db_name: &str, name: &str, npub: &str, xpub: &str, prvk: &str, level: &str, gap: &str, parent: &str) -> bool {
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let conn = Connection::open(render_db_name).unwrap();
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS identity (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            npub TEXT NOT NULL,
+            xpub TEXT,
+            prvk TEXT NOT NULL,
+            level INTEGER,
+            gap INTEGER,
+            parent TEXT
+        )",
+        [],
+    ).unwrap();
+
+    match conn.execute(
+        "INSERT INTO identity (name, npub, xpub, prvk, level, gap, parent) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);",
+        &[name, npub, xpub, prvk, level, gap, parent],
+    ) {
+        Ok(_) => true,
+        Err(_) => false
+    }
+}
+
+#[tauri::command]
+fn account_count(db_name: &str) -> Result<usize, InvokeError> {
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let conn = Connection::open(render_db_name).unwrap();
+    let count: usize = conn.query_row("SELECT count(*) FROM identity", [], |row| row.get(0)).unwrap();
+    Ok(count)
+}
+
+struct Identity {
+    id: i32,
+    name: String,
+    npub: String,
+    xpub: String,
+    prvk: String,
+    level: i32,
+    gap: i32,
+    parent: String,
+}
+
+// TODO: fix this, make it flexible
+#[tauri::command]
+fn query_identity(db_name: &str,) {
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let conn = Connection::open(render_db_name).unwrap();
+    let mut stmt = conn.prepare("SELECT * FROM identity WHERE name = 'hello';").unwrap();
+    let identity_iter = stmt.query_map([], |row| {
+        Ok(Identity {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            npub: row.get(2)?,
+            xpub: row.get(3)?,
+            prvk: row.get(4)?,
+            level: row.get(5)?,
+            gap: row.get(6)?,
+            parent: row.get(7)?,
+        })
+    }).unwrap();
+    for identity in identity_iter {
+        let identity = identity.unwrap();
+        println!("Found identity: id={}, name={}, npub={}, xpub={}, prvk={}, level={}, gap={}, parent={}", 
+                 identity.id, identity.name, identity.npub, identity.xpub, identity.prvk, identity.level, identity.gap, identity.parent);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    // derive("1136d293ace78ab1037166963b1d4cb8db8322dff5dbd98d9dceab5676c10207");
+    // open_db("db_try.db");
+    // query_identity("hello");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             read_file, 
@@ -181,7 +257,9 @@ async fn main() -> Result<()> {
             calculate_xprv_from_seed, 
             calculate_xpub_from_seed,
             derive_child_pub_from_xpub,
-            derive_child_xprv_from_xprv
+            derive_child_xprv_from_xprv,
+            insert_into_db,
+            account_count,
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

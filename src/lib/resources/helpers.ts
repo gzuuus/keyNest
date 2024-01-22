@@ -1,37 +1,56 @@
 import { goto } from '$app/navigation';
 import { currentProfile, fileStore } from '$lib/stores/stores';
-import type { RootPInterface } from '$lib/types/profile-json-interface';
+import type { ProfileInterface} from '$lib/types/profile-json-interface';
 import { invoke } from '@tauri-apps/api';
 
 export async function writeFile(name: string, data: any): Promise<boolean> {
 	return await invoke('write_json', { name, data });
 }
 
-export async function read(name: string): Promise<RootPInterface> {
-	let content: RootPInterface = await invoke('read_file', { name });
+export async function insertInDb(name: string, data: any): Promise<boolean> {
+	let dataValues: ProfileInterface = data;
+	return await invoke('insert_into_db', { 
+		dbName: name, 
+		name: dataValues.name,
+		npub: dataValues.npub,
+		xpub: dataValues.xpub,
+		prvk: dataValues.prvk,
+		level: dataValues.level?.toString(),
+		gap: dataValues.gap?.toString(),
+		parent: dataValues.parent 
+	  });
+}
+
+export async function read(name: string): Promise<ProfileInterface> {
+	let content: ProfileInterface = await invoke('read_file', { name });
 	currentProfile.set(content);
 	return content;
 }
 
-export async function deleteFile(fileName: string) {
+export async function deleteFile(fileName: string): Promise<boolean> {
 	try {
 		let deleteFile = await invoke('delete_file_by_name', { filename: fileName });
 		if (deleteFile) listFiles();
+		return true;
 	} catch (error) {
 		console.log(error);
+		return false;
 	}
 }
 
+// TODO: Fix this, if there are two list and you delete one it doesnt update
 export async function listFiles(): Promise<string[] | undefined> {
-	let fileList: string[] = await invoke('list_files');
+	let fileList: string[] | undefined = await invoke('list_files');
 	console.log(fileList);
+	!fileList?.length ? fileList = undefined : fileList
 	if (fileList) {
+		goto('/');
 		fileStore.set(fileList);
 		return fileList;
-	} else if (fileList! == null) {
+	} else if (fileList! == undefined) {
 		console.log('no files');
 		goto('/create-profile');
-		fileStore.set(null);
+		fileStore.set(undefined);
 		return undefined;
 	}
 }
