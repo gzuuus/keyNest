@@ -2,6 +2,7 @@
 	import IdentityCard from '$lib/components/identity-card.svelte';
 import { decrypt, derive_child_pub_from_xpub, insertDerivedChild, logOut, readDb } from '$lib/resources/helpers';
 	import { appContextStore, currentProfile, derivedIdentitiesStore } from '$lib/stores/stores';
+	import type { ProfileInterface } from '$lib/types/interfaces';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 	import { nip19 } from 'nostr-tools';
 	import { onDestroy, onMount } from 'svelte';
@@ -35,15 +36,13 @@ import { decrypt, derive_child_pub_from_xpub, insertDerivedChild, logOut, readDb
 
 	}
 
-	async function handleDerive(xpub?: string, dbname?: string) {
-		if (!xpub || !dbname) return
-		let derivedKey = await derive_child_pub_from_xpub(xpub, 0);
-		let insertKey = await insertDerivedChild(dbname, derivedKey);
-		readDb(dbname)
+	async function handleDerive(parentIdentity: ProfileInterface | undefined, dbname: string | undefined) {
+		if (!parentIdentity || !dbname) return
+		let derivedKey = await derive_child_pub_from_xpub(parentIdentity, dbname);
+		derivedKey && readDb(dbname)
 	}
 	onMount(() => {
 		$appContextStore?.currentDbname? readDb($appContextStore?.currentDbname) : console.log("no db")
-		prvk = undefined
 	})
 
 	onDestroy(() => {
@@ -60,10 +59,10 @@ import { decrypt, derive_child_pub_from_xpub, insertDerivedChild, logOut, readDb
 		<button type="submit" class="common-btn-sm-filled">Login</button>
 		</form>
 		{:else}
-		<h2>{nip19.npubEncode($currentProfile?.npub??'')}</h2>
+		<h2>{nip19.npubEncode($currentProfile?.hexpub??'')}</h2>
 		<button
 			class="common-btn-sm-filled"
-			on:click={() => handleDerive($currentProfile?.xpub, $appContextStore?.currentDbname)}>Derive</button
+			on:click={() => handleDerive($currentProfile, $appContextStore?.currentDbname)}>Derive</button
 		>
 		<button class="common-btn-sm-ghost-error" on:click={() => logOut()}>Log Out</button>
 			{#if $derivedIdentitiesStore}

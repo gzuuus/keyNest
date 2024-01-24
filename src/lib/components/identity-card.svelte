@@ -6,14 +6,14 @@
 	import { get } from "svelte/store";
 
     export let profile: ProfileInterface
-
     async function handleDelete() {
         const appContext = get(appContextStore);
         if (!appContext?.currentDbname) return
-        deleteIdentityFromDb(appContext?.currentDbname, 'npub', profile.npub);
+        deleteIdentityFromDb(appContext?.currentDbname, 'hexpub', profile.hexpub);
     }
 </script>
+
 <p>{profile.name}</p>
-<p>{nip19.npubEncode(profile.npub)}</p>
-<button class="common-btn-sm-ghost-error" on:click={handleDelete}>Delete</button>
-<!-- <code>{JSON.stringify(profile)}</code> -->
+<p>{nip19.npubEncode(profile.hexpub)}</p>
+<button class="common-btn-sm-ghost-error" on:click={handleDelete}>Delete</button> 
+<code>{JSON.stringify(profile)}</code>

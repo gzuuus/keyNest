@@ -9,11 +9,6 @@
 	import CloseIcon from '$lib/resources/icons/close-icon.svelte';
 	import { calculateXpubFromSeed, encrypt, insertInDb, writeFile } from '$lib/resources/helpers';
 
-	export const rootPSchema = object({
-		name: string(),
-		npub: string()
-	});
-
 	interface CreateAccForm {
 		name: string;
 		pass: string;
@@ -93,16 +88,15 @@
 		}
 
 		let insecurePrvk = generateSecretKey();
-		let npub = getPublicKey(insecurePrvk);
+		let hexpub = getPublicKey(insecurePrvk);
 		let encryptedNsec = await encrypt(uint8ArrayTo32HexString(insecurePrvk), pass);
 		let xpub = await calculateXpubFromSeed(uint8ArrayTo32HexString(insecurePrvk));
-		let extendedFormData = {
+		let extendedFormData: ProfileInterface = {
 			name,
-			npub: npub,
+			hexpub: hexpub,
 			xpub: xpub,
 			prvk: encryptedNsec,
 			level: 0,
-			scope: 0,
 			gap: 0,
 		};
 

@@ -173,26 +173,27 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
 }
 
 #[tauri::command]
-fn insert_into_db(db_name: &str, name: &str, npub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>) -> bool {
+fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>, child_index: Option<&str>) -> bool {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
     conn.execute(
         "CREATE TABLE IF NOT EXISTS identity (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            npub TEXT NOT NULL,
+            hexpub TEXT NOT NULL,
             xpub TEXT NULL,
             prvk TEXT NOT NULL,
             level INTEGER,
             gap INTEGER NULL,
-            parent TEXT NULL
+            parent TEXT NULL,
+            childindex INTEGER NULL
         )",
         [],
     ).unwrap();
 
     match conn.execute(
-        "INSERT INTO identity (name, npub, xpub, prvk, level, gap, parent) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);",
-        &[name, npub, xpub.unwrap_or("NULL"), prvk, level, gap.unwrap_or("NULL"), parent.unwrap_or("NULL")],
+        "INSERT INTO identity (name, hexpub, xpub, prvk, level, gap, parent, childindex) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);",
+        &[name, hexpub, xpub.unwrap_or("NULL"), prvk, level, gap.unwrap_or("NULL"), parent.unwrap_or("NULL"), child_index.unwrap_or("NULL")],
     ) {
         Ok(_) => true,
         Err(_) => false
@@ -211,12 +212,13 @@ fn account_count(db_name: &str) -> Result<usize, InvokeError> {
 struct Identity {
     id: i32,
     name: String,
-    npub: String,
-    xpub: String,
-    prvk: String,
-    level: i32,
-    gap: i32,
-    parent: String,
+    hexpub: String,
+    xpub: Option<String>,
+    prvk: Option<String>,
+    level: Option<i32>,
+    gap: Option<i32>,
+    parent: Option<String>,
+    child_index: Option<i32>,
 }
 
 // TODO: fix this, make it flexible
@@ -230,12 +232,13 @@ fn get_root_identity_by_column_and_value(db_name: &str, column: &str, value: &st
         Ok(Identity {
             id: row.get(0)?,
             name: row.get(1)?,
-            npub: row.get(2)?,
+            hexpub: row.get(2)?,
             xpub: row.get(3)?,
             prvk: row.get(4)?,
             level: row.get(5)?,
             gap: row.get(6)?,
             parent: row.get(7)?,
+            child_index: None,
         })
     }) {
         Ok(identity) => identity,
@@ -254,12 +257,13 @@ fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) 
         Ok(Identity {
             id: row.get(0)?,
             name: row.get(1)?,
-            npub: row.get(2)?,
+            hexpub: row.get(2)?,
             xpub: row.get(3)?,
             prvk: row.get(4)?,
             level: row.get(5)?,
             gap: row.get(6)?,
             parent: row.get(7)?,
+            child_index: row.get(8)?,
         })
     }) {
         Ok(identity_iter) => identity_iter,
@@ -283,12 +287,13 @@ fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
         Ok(Identity {
             id: row.get(0)?,
             name: row.get(1)?,
-            npub: row.get(2)?,
+            hexpub: row.get(2)?,
             xpub: row.get(3)?,
             prvk: row.get(4)?,
             level: row.get(5)?,
             gap: row.get(6)?,
             parent: row.get(7)?,
+            child_index: row.get(8)?,
         })
     }) {
         Ok(identity_iter) => identity_iter,
@@ -316,18 +321,16 @@ fn delete_identity_from_db(db_name: &str, column: &str, value: &str) -> bool {
 }
 
 #[tauri::command]
-fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &str) -> bool {
+fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &str, where_column: &str) -> bool {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
-    let render_query = format!("UPDATE identity SET {} = '{}' WHERE {} = '{}';", column, new_value, column, value);
+    let render_query = format!("UPDATE identity SET {} = '{}' WHERE {} = '{}';", column, new_value, where_column, value);
     
     match conn.execute(&render_query, []) {
         Ok(_) => true,
         Err(_) => false
     }
 }
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {

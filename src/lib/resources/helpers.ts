@@ -11,21 +11,15 @@ export async function insertInDb(name: string, data: ProfileInterface): Promise<
 	return await invoke('insert_into_db', { 
 		dbName: `${name}.db`, 
 		name: data.name,
-		npub: data.npub,
+		hexpub: data.hexpub,
 		xpub: data.xpub,
 		prvk: data.prvk,
 		level: data.level?.toString(),
 		gap: data.gap?.toString(),
-		parent: data.parent 
+		parent: data.parent,
+		childIndex: data.childIndex?.toString()
 	  });
 }
-
-// export async function read(dbName: string): Promise<ProfileInterface> {
-// 	let content: ProfileInterface = await invoke('read_file', { dbName: dbName });
-// 	console.log('This is the content', content);
-// 	currentProfile.set(content);
-// 	return content;
-// }
 
 export async function getRootbyColumnAndValue(dbName: string, column: string, value: string): Promise<ProfileInterface[]> {
     let content: ProfileInterface[] = await invoke("get_root_identity_by_column_and_value", { 
@@ -64,12 +58,13 @@ export async function deleteFile(fileName: string): Promise<boolean> {
 }
 
 // TODO Implement this
-export async function updateValueInDb(dbName: string, column: string, value: string, newValue: string): Promise<boolean> {
+export async function updateValueInDb(dbName: string, column: string, newValue: string, whereColumn: string, value: string): Promise<boolean> {
     try {
 		let updateDb: boolean = await invoke("update_identity_in_db", { 
 			dbName: dbName,
 			column: column,
 			value: value,
+			whereColumn: whereColumn,
 			newValue: newValue
 		  });
 		  if (updateDb) readDb(dbName)
@@ -129,34 +124,58 @@ export async function decrypt(
 }
 
 export async function derive_child_pub_from_xpub(
-	xpub: string,
-	child_index: number
-): Promise<string> {
+	parentIdentity: ProfileInterface,
+	dbName: string,
+): Promise<string | false> {
 	let derived: string = await invoke('derive_child_pub_from_xpub', {
-		xpub: xpub,
-		childIndex: child_index
+		xpub: parentIdentity.xpub,
+		childIndex: parentIdentity.gap
 	});
-	derived = derived.substring(2);
-	return derived;
+	if (!derived) return false;
+	let parentLevel = parentIdentity.level;
+	const derivedProfile: ProfileInterface = {
+		name: 'derived',
+		hexpub: derived,
+		xpub: 'NULL',
+		prvk: 'NULL',
+		level: ++parentLevel!,
+		gap: 0,
+		parent: parentIdentity.hexpub,
+		childIndex: parentIdentity.gap
+	}
+
+	const isInserted = await insertDerivedChild(dbName, derivedProfile);
+	const updateParent = !isInserted ? false : await updateValueInDb(
+		dbName,
+		'gap',
+		(++parentIdentity.gap!).toString(),
+		'hexpub',	
+		parentIdentity.hexpub,
+	)
+	if (!updateParent) return false;
+
+	return derived.substring(2);
 }
-//insert_into_db(db_name: &str, name: &str, npub: &str, xpub: &str, prvk: &str, level: &str, gap: &str, parent: &str)
+
 // TODO!
 export async function insertDerivedChild(
 	db_name: string,
-	pubk: string,
+	pData: ProfileInterface,
 ): Promise<boolean> {
 	try {
+		console.log('PDATA',pData);
 		let derived: boolean = await invoke('insert_into_db', {
 			dbName: db_name,
-			name: 'derived',
-			npub: pubk,
-			xpub: '',
-			prvk: '',
-			level: '1',
-			gap: '0',
-			parent: ''
+			name: pData.name,
+			hexpub: pData.hexpub,
+			xpub: pData.xpub,
+			prvk: pData.prvk,
+			level: pData.level?.toString(),
+			gap: pData.gap?.toString(),
+			parent: pData.parent,
+			childIndex: pData.childIndex?.toString()
 		});
-		return true;
+		return derived;
 	} catch (error) {
 		console.log(error);
 		return false;

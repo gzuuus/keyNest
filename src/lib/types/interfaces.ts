@@ -1,12 +1,13 @@
 // TODO! change this for a more flexible interface
 export interface ProfileInterface {
 	name: string;
-	npub: string;
+	hexpub: string;
 	xpub?: string;
-	prvk: string;
+	prvk?: string;
 	level?: number;
 	gap?: number;
 	parent?: string;
+	childIndex?: number;
   }
 
 export interface AppContext {
