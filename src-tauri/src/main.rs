@@ -30,9 +30,9 @@ use rusqlite::{Connection, Result};
 const ACCOUNT_PATH: &str = "./.nostr_accounts";
 
 #[tauri::command]
-fn read_file(name: &str) -> serde_json::Value {
-  println!("Reading file: {}", name);
-  let file_path = Path::new(ACCOUNT_PATH).join(name);
+fn read_file(db_name: &str) -> serde_json::Value {
+  println!("Reading file: {}", db_name);
+  let file_path = Path::new(ACCOUNT_PATH).join(db_name);
   let mut file = File::open(file_path).expect("Failed to open file");
   let mut contents = Vec::new();
   file.read_to_end(&mut contents).expect("Failed to read file");
@@ -173,7 +173,7 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
 }
 
 #[tauri::command]
-fn insert_into_db(db_name: &str, name: &str, npub: &str, xpub: &str, prvk: &str, level: &str, gap: &str, parent: &str) -> bool {
+fn insert_into_db(db_name: &str, name: &str, npub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>) -> bool {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
     conn.execute(
@@ -181,18 +181,18 @@ fn insert_into_db(db_name: &str, name: &str, npub: &str, xpub: &str, prvk: &str,
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             npub TEXT NOT NULL,
-            xpub TEXT,
+            xpub TEXT NULL,
             prvk TEXT NOT NULL,
             level INTEGER,
-            gap INTEGER,
-            parent TEXT
+            gap INTEGER NULL,
+            parent TEXT NULL
         )",
         [],
     ).unwrap();
 
     match conn.execute(
         "INSERT INTO identity (name, npub, xpub, prvk, level, gap, parent) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);",
-        &[name, npub, xpub, prvk, level, gap, parent],
+        &[name, npub, xpub.unwrap_or("NULL"), prvk, level, gap.unwrap_or("NULL"), parent.unwrap_or("NULL")],
     ) {
         Ok(_) => true,
         Err(_) => false
@@ -226,6 +226,30 @@ fn get_root_identity_by_column_and_value(db_name: &str, column: &str, value: &st
     let conn = Connection::open(render_db_name).unwrap();
     let render_query = format!("SELECT * FROM identity WHERE {} = '{}' AND level = '0';", column, value);
     let mut stmt = conn.prepare(&render_query).unwrap();
+    let identity = match stmt.query_row([], |row| {
+        Ok(Identity {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            npub: row.get(2)?,
+            xpub: row.get(3)?,
+            prvk: row.get(4)?,
+            level: row.get(5)?,
+            gap: row.get(6)?,
+            parent: row.get(7)?,
+        })
+    }) {
+        Ok(identity) => identity,
+        Err(e) => return Err(InvokeError::from(format!("Error querying database: {}", e))),
+    };
+    Ok(vec![identity])
+}
+
+#[tauri::command]
+fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) -> Result<Vec<Identity>, InvokeError> {
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let conn = Connection::open(render_db_name).unwrap();
+    let render_query = format!("SELECT * FROM identity WHERE {} = '{}';", column, value);
+    let mut stmt = conn.prepare(&render_query).unwrap();
     let identity_iter = match stmt.query_map([], |row| {
         Ok(Identity {
             id: row.get(0)?,
@@ -247,31 +271,6 @@ fn get_root_identity_by_column_and_value(db_name: &str, column: &str, value: &st
         identities.push(identity);
     }
     Ok(identities)
-
-}
-
-#[tauri::command]
-fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) -> Result<Vec<Identity>, InvokeError> {
-    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
-    let conn = Connection::open(render_db_name).unwrap();
-    let render_query = format!("SELECT * FROM identity WHERE {} = '{}';", column, value);
-    let mut stmt = conn.prepare(&render_query).unwrap();
-    let identity = match stmt.query_row([], |row| {
-        Ok(Identity {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            npub: row.get(2)?,
-            xpub: row.get(3)?,
-            prvk: row.get(4)?,
-            level: row.get(5)?,
-            gap: row.get(6)?,
-            parent: row.get(7)?,
-        })
-    }) {
-        Ok(identity) => identity,
-        Err(e) => return Err(InvokeError::from(format!("Error querying database: {}", e))),
-    };
-    Ok(vec![identity])
 }
 
 #[tauri::command]
@@ -280,7 +279,7 @@ fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
     let conn = Connection::open(render_db_name).unwrap();
     let render_query = format!("SELECT * FROM identity WHERE level != '0';");
     let mut stmt = conn.prepare(&render_query).unwrap();
-    let identity = match stmt.query_row([], |row| {
+    let identity_iter = match stmt.query_map([], |row| {
         Ok(Identity {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -292,11 +291,43 @@ fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
             parent: row.get(7)?,
         })
     }) {
-        Ok(identity) => identity,
+        Ok(identity_iter) => identity_iter,
         Err(e) => return Err(InvokeError::from(format!("Error querying database: {}", e))),
     };
-    Ok(vec![identity])
+    let mut identities = Vec::new();
+    for identity in identity_iter {
+        let identity = identity.unwrap();
+        identities.push(identity);
+    }
+    Ok(identities)
 }
+
+#[tauri::command]
+fn delete_identity_from_db(db_name: &str, column: &str, value: &str) -> bool {
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let conn = Connection::open(render_db_name).unwrap();
+    // let render_query = format!("DELETE FROM identity WHERE {} = '{}';", column, value);
+    let render_query = format!("DELETE FROM identity WHERE {} = '{}';", column, value);
+    
+    match conn.execute(&render_query, []) {
+        Ok(_) => true,
+        Err(_) => false
+    }
+}
+
+#[tauri::command]
+fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &str) -> bool {
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let conn = Connection::open(render_db_name).unwrap();
+    let render_query = format!("UPDATE identity SET {} = '{}' WHERE {} = '{}';", column, new_value, column, value);
+    
+    match conn.execute(&render_query, []) {
+        Ok(_) => true,
+        Err(_) => false
+    }
+}
+
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -316,7 +347,9 @@ async fn main() -> Result<()> {
             account_count,
             get_root_identity_by_column_and_value,
             get_identities_by_column_and_value,
-            get_all_identities
+            get_all_identities,
+            delete_identity_from_db,
+            update_identity_in_db
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

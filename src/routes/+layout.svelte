@@ -10,17 +10,18 @@
 	import ndk from '$lib/stores/provider';
 	import HouseIcon from '$lib/resources/icons/house-icon.svelte';
 	import ProfileIcon from '$lib/resources/icons/profile-icon.svelte';
-	import { currentProfile, fileStore } from '$lib/stores/stores';
+	import { currentProfile, appContextStore } from '$lib/stores/stores';
 	import { page } from '$app/stores';
 	import { initializeStores } from '@skeletonlabs/skeleton';
 	import { goto } from '$app/navigation';
 	initializeStores();
+	
 	currentProfile.subscribe(setProfile);
 	async function setProfile() {
 		console.log($currentProfile);
 		goto(`/p/account`);
 	}
-
+	// $: console.log('Reading appContextStore', $appContextStore);
 	// Highlight JS
 	// import hljs from 'highlight.js/lib/core';
 	// import 'highlight.js/styles/github-dark.css';
@@ -51,14 +52,14 @@
 		<button on:click={() => goto('/test')}>test</button>
 	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
-		{#if $fileStore?.length}
+		{#if $appContextStore?.fileList?.length}
 			<AppRail>
-				<AppRailAnchor href="/" selected={$page.url.pathname === '/'}>
+				<AppRailAnchor href="/" selected={$page.url.pathname == '/'}>
 					<svelte:fragment slot="lead"><HouseIcon size={18} /></svelte:fragment>
 					<span>Home</span>
 				</AppRailAnchor>
 				{#if $currentProfile}
-					<AppRailAnchor href="/p/account" selected={$page.url.pathname === '/p/account'}>
+					<AppRailAnchor href="/p/account" selected={$page.url.pathname == '/p/account'}>
 						<svelte:fragment slot="lead"><ProfileIcon size={18} /></svelte:fragment>
 						<span>Account</span>
 					</AppRailAnchor>

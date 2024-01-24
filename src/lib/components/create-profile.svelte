@@ -1,6 +1,6 @@
 <script lang="ts">
 	import AddFileIcon from '$lib/resources/icons/add-file-icon.svelte';
-	import type { ProfileInterface } from '$lib/types/profile-json-interface';
+	import type { ProfileInterface } from '$lib/types/interfaces';
 	import { FileDropzone, focusTrap } from '@skeletonlabs/skeleton';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 	import { goto } from '$app/navigation';
@@ -93,7 +93,7 @@
 		}
 
 		let insecurePrvk = generateSecretKey();
-		let npub = nip19.npubEncode(getPublicKey(insecurePrvk));
+		let npub = getPublicKey(insecurePrvk);
 		let encryptedNsec = await encrypt(uint8ArrayTo32HexString(insecurePrvk), pass);
 		let xpub = await calculateXpubFromSeed(uint8ArrayTo32HexString(insecurePrvk));
 		let extendedFormData = {
@@ -104,7 +104,6 @@
 			level: 0,
 			scope: 0,
 			gap: 0,
-			parent: ''
 		};
 
 		if (!validateFormData()) return;
@@ -112,9 +111,8 @@
 			const formValues = Object.fromEntries(
 				Object.entries(extendedFormData).map(([key, val]) => [key, readonlyValue(val)])
 			) as Readonly<Record<keyof ProfileInterface, unknown>>;
-			console.log(formValues);
-			// let craftFile = await writeFile(formData.name!, formValues);
-			let craftFile = await insertInDb(formData.name!, formValues);
+			console.log(formValues)
+			let craftFile = await insertInDb(formData.name!, formValues as ProfileInterface);
 			console.log(craftFile);
 			createNew = false;
 			goto('/');

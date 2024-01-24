@@ -8,4 +8,8 @@ export interface ProfileInterface {
 	gap?: number;
 	parent?: string;
   }
-  
+
+export interface AppContext {
+    fileList: string[] | undefined;
+    currentDbname: string | undefined;
+}

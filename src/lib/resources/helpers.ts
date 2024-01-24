@@ -1,31 +1,31 @@
 import { goto } from '$app/navigation';
-import { currentProfile, fileStore } from '$lib/stores/stores';
-import type { ProfileInterface} from '$lib/types/profile-json-interface';
+import { appContextStore, currentProfile, derivedIdentitiesStore } from '$lib/stores/stores';
+import type { ProfileInterface} from '$lib/types/interfaces';
 import { invoke } from '@tauri-apps/api';
 
 export async function writeFile(name: string, data: any): Promise<boolean> {
 	return await invoke('write_json', { name, data });
 }
 
-export async function insertInDb(name: string, data: any): Promise<boolean> {
-	let dataValues: ProfileInterface = data;
+export async function insertInDb(name: string, data: ProfileInterface): Promise<boolean> {
 	return await invoke('insert_into_db', { 
-		dbName: name, 
-		name: dataValues.name,
-		npub: dataValues.npub,
-		xpub: dataValues.xpub,
-		prvk: dataValues.prvk,
-		level: dataValues.level?.toString(),
-		gap: dataValues.gap?.toString(),
-		parent: dataValues.parent 
+		dbName: `${name}.db`, 
+		name: data.name,
+		npub: data.npub,
+		xpub: data.xpub,
+		prvk: data.prvk,
+		level: data.level?.toString(),
+		gap: data.gap?.toString(),
+		parent: data.parent 
 	  });
 }
 
-export async function read(name: string): Promise<ProfileInterface> {
-	let content: ProfileInterface = await invoke('read_file', { name });
-	currentProfile.set(content);
-	return content;
-}
+// export async function read(dbName: string): Promise<ProfileInterface> {
+// 	let content: ProfileInterface = await invoke('read_file', { dbName: dbName });
+// 	console.log('This is the content', content);
+// 	currentProfile.set(content);
+// 	return content;
+// }
 
 export async function getRootbyColumnAndValue(dbName: string, column: string, value: string): Promise<ProfileInterface[]> {
     let content: ProfileInterface[] = await invoke("get_root_identity_by_column_and_value", { 
@@ -34,13 +34,22 @@ export async function getRootbyColumnAndValue(dbName: string, column: string, va
       value: value
     });
     currentProfile.set(content[0]);
+	appContextStore.update((value) => {
+		return { 
+			fileList: value?.fileList, 
+			currentDbname: dbName };
+	})
 	return content;
   }
 
-export async function readDb(dbName: string) {
+export async function readDb(dbName: string): Promise<ProfileInterface[]> {
+	console.log('readDb', dbName);
     let content: ProfileInterface[] = await invoke("get_all_identities", { 
       dbName: dbName,
     });
+	console.log(content);
+	derivedIdentitiesStore.set(content);
+	return content;
   }
 
 export async function deleteFile(fileName: string): Promise<boolean> {
@@ -54,6 +63,40 @@ export async function deleteFile(fileName: string): Promise<boolean> {
 	}
 }
 
+// TODO Implement this
+export async function updateValueInDb(dbName: string, column: string, value: string, newValue: string): Promise<boolean> {
+    try {
+		let updateDb: boolean = await invoke("update_identity_in_db", { 
+			dbName: dbName,
+			column: column,
+			value: value,
+			newValue: newValue
+		  });
+		  if (updateDb) readDb(dbName)
+		  return updateDb;
+	} catch (error) {
+		console.log(error);
+		return false;
+	}
+  }
+
+export async function deleteIdentityFromDb(dbName: string, column: string, value: string): Promise<boolean> {
+	console.log(dbName, column, value);
+	try {
+		let deleteFile: boolean = await invoke('delete_identity_from_db', { 
+			dbName: dbName,
+			column: column,
+			value: value
+		  });
+		if (deleteFile) readDb(dbName)
+		return deleteFile;
+	} catch (error) {
+		console.log(error);
+		return false;
+	}
+}
+
+
 // TODO: Fix this, if there are two list and you delete one it doesnt update
 export async function listFiles(): Promise<string[] | undefined> {
 	let fileList: string[] | undefined = await invoke('list_files');
@@ -61,12 +104,12 @@ export async function listFiles(): Promise<string[] | undefined> {
 	!fileList?.length ? fileList = undefined : fileList
 	if (fileList) {
 		goto('/');
-		fileStore.set(fileList);
+		appContextStore.set({fileList: fileList, currentDbname: undefined});
 		return fileList;
 	} else if (fileList! == undefined) {
 		console.log('no files');
 		goto('/create-profile');
-		fileStore.set(undefined);
+		appContextStore.set({fileList: undefined, currentDbname: undefined});
 		return undefined;
 	}
 }
@@ -151,5 +194,9 @@ export function uint8ArrayTo32HexString(uint8Array: Uint8Array): string {
 
 export function logOut() {
 	currentProfile.set(undefined);
+	appContextStore.set({
+		fileList: undefined, 
+		currentDbname: undefined
+	});
 	goto('/')
 }

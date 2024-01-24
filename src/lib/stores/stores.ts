@@ -1,5 +1,7 @@
-import type { ProfileInterface } from '$lib/types/profile-json-interface';
+import type { AppContext, ProfileInterface } from '$lib/types/interfaces';
 import { type Writable, writable } from 'svelte/store';
 
-export const fileStore: Writable<String[] | undefined> = writable([]);
+
+export const appContextStore: Writable<AppContext | undefined> = writable({fileList: undefined, currentDbname: undefined});
 export const currentProfile: Writable<ProfileInterface | undefined> = writable(undefined);
+export const derivedIdentitiesStore: Writable<ProfileInterface[] | undefined> = writable(undefined)
