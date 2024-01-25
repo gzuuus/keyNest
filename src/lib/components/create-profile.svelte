@@ -8,6 +8,9 @@
 	import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 	import CloseIcon from '$lib/resources/icons/close-icon.svelte';
 	import { calculateXpubFromSeed, encrypt, insertInDb, writeFile } from '$lib/resources/helpers';
+	import { Accordion, AccordionItem } from '@skeletonlabs/skeleton';
+	import GearIcon from '$lib/resources/icons/gear-icon.svelte';
+	import { appContextStore, currentProfile } from '$lib/stores/stores';
 
 	interface CreateAccForm {
 		name: string;
@@ -105,11 +108,17 @@
 			const formValues = Object.fromEntries(
 				Object.entries(extendedFormData).map(([key, val]) => [key, readonlyValue(val)])
 			) as Readonly<Record<keyof ProfileInterface, unknown>>;
-			console.log(formValues)
-			let craftFile = await insertInDb(formData.name!, formValues as ProfileInterface);
-			console.log(craftFile);
+			let dbName = `${formData.name}.db`
+			let craftFile = await insertInDb(dbName, formValues as ProfileInterface);
+			// console.log(craftFile);
 			createNew = false;
-			goto('/');
+			appContextStore.set({ 
+				fileList: [dbName],
+				currentDbname: dbName,
+				sessionPass: formData.pass, 
+			});
+			currentProfile.set(extendedFormData);
+			goto('/p/account');
 		} catch (error) {
 			console.log('Error occurred while handling submission:', error);
 		}
@@ -141,7 +150,7 @@
 		<button class="common-btn-icon-ghost" on:click={() => (createNew = false)}
 			><CloseIcon size={16} /></button
 		>
-		<form use:focusTrap={true} on:submit|preventDefault={handleSubmit}>
+		<form use:focusTrap={true} on:submit|preventDefault={handleSubmit} class="flex flex-col gap-2">
 			<label class="label"
 				>Name:
 				<input class="input" type="text" placeholder="Enter Name" bind:value={name} required />
@@ -156,7 +165,18 @@
 					required
 				/>
 			</label>
-			<button class="common-btn-sm-filled" type="submit">Publish</button>
+
+			<Accordion>
+				<AccordionItem>
+					<svelte:fragment slot="lead"><GearIcon size={18} /></svelte:fragment>
+					<svelte:fragment slot="summary">Advanced</svelte:fragment>
+					<svelte:fragment slot="content">
+						(content)
+					</svelte:fragment>
+				</AccordionItem>
+			</Accordion>
+
+			<button class="common-btn-sm-filled w-fit" type="submit">Publish</button>
 		</form>
 	</section>
 {/if}

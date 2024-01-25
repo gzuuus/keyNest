@@ -13,4 +13,5 @@ export interface ProfileInterface {
 export interface AppContext {
     fileList: string[] | undefined;
     currentDbname: string | undefined;
+	sessionPass?: string | undefined;
 }

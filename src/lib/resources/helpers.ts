@@ -2,6 +2,7 @@ import { goto } from '$app/navigation';
 import { appContextStore, currentProfile, derivedIdentitiesStore } from '$lib/stores/stores';
 import type { ProfileInterface} from '$lib/types/interfaces';
 import { invoke } from '@tauri-apps/api';
+import { getPublicKey } from 'nostr-tools';
 
 export async function writeFile(name: string, data: any): Promise<boolean> {
 	return await invoke('write_json', { name, data });
@@ -9,7 +10,7 @@ export async function writeFile(name: string, data: any): Promise<boolean> {
 
 export async function insertInDb(name: string, data: ProfileInterface): Promise<boolean> {
 	return await invoke('insert_into_db', { 
-		dbName: `${name}.db`, 
+		dbName: name, 
 		name: data.name,
 		hexpub: data.hexpub,
 		xpub: data.xpub,
@@ -31,21 +32,24 @@ export async function getRootbyColumnAndValue(dbName: string, column: string, va
 	appContextStore.update((value) => {
 		return { 
 			fileList: value?.fileList, 
-			currentDbname: dbName };
+			currentDbname: dbName,
+			sessionPass: value?.sessionPass
+		}
 	})
 	return content;
   }
 
 export async function readDb(dbName: string): Promise<ProfileInterface[]> {
-	console.log('readDb', dbName);
+	// console.log('readDb', dbName);
     let content: ProfileInterface[] = await invoke("get_all_identities", { 
       dbName: dbName,
     });
-	console.log(content);
+	// console.log(content);
 	derivedIdentitiesStore.set(content);
 	return content;
   }
 
+// TODO dont delete, just mark as deleted
 export async function deleteFile(fileName: string): Promise<boolean> {
 	try {
 		let deleteFile = await invoke('delete_file_by_name', { filename: fileName });
@@ -76,7 +80,6 @@ export async function updateValueInDb(dbName: string, column: string, newValue: 
   }
 
 export async function deleteIdentityFromDb(dbName: string, column: string, value: string): Promise<boolean> {
-	console.log(dbName, column, value);
 	try {
 		let deleteFile: boolean = await invoke('delete_identity_from_db', { 
 			dbName: dbName,
@@ -91,20 +94,31 @@ export async function deleteIdentityFromDb(dbName: string, column: string, value
 	}
 }
 
-
-// TODO: Fix this, if there are two list and you delete one it doesnt update
 export async function listFiles(): Promise<string[] | undefined> {
+	console.log('listFiles');
 	let fileList: string[] | undefined = await invoke('list_files');
-	console.log(fileList);
 	!fileList?.length ? fileList = undefined : fileList
 	if (fileList) {
 		goto('/');
-		appContextStore.set({fileList: fileList, currentDbname: undefined});
+		appContextStore.update((value) => {
+			return { 
+				fileList: fileList, 
+				currentDbname: value?.currentDbname,
+				sessionPass: value?.sessionPass
+			}
+		})
 		return fileList;
 	} else if (fileList! == undefined) {
 		console.log('no files');
 		goto('/create-profile');
-		appContextStore.set({fileList: undefined, currentDbname: undefined});
+		// appContextStore.set({fileList: undefined, currentDbname: undefined});
+		appContextStore.update((value) => {
+			return { 
+				fileList: undefined, 
+				currentDbname: undefined,
+				sessionPass: undefined
+			}
+		})
 		return undefined;
 	}
 }
@@ -123,19 +137,20 @@ export async function decrypt(
 	return decrypted;
 }
 
-export async function derive_child_pub_from_xpub(
+export async function derive_child_pub_from_xpub_and_insert(
 	parentIdentity: ProfileInterface,
 	dbName: string,
 ): Promise<string | false> {
-	let derived: string = await invoke('derive_child_pub_from_xpub', {
+	let derivedChildPub: string = await invoke('derive_child_pub_from_xpub', {
 		xpub: parentIdentity.xpub,
 		childIndex: parentIdentity.gap
 	});
-	if (!derived) return false;
+
+	if (!derivedChildPub) return false;
 	let parentLevel = parentIdentity.level;
 	const derivedProfile: ProfileInterface = {
 		name: 'derived',
-		hexpub: derived,
+		hexpub: derivedChildPub,
 		xpub: 'NULL',
 		prvk: 'NULL',
 		level: ++parentLevel!,
@@ -154,7 +169,82 @@ export async function derive_child_pub_from_xpub(
 	)
 	if (!updateParent) return false;
 
-	return derived.substring(2);
+	return derivedChildPub.substring(2);
+}
+
+export function hexStringToUint8Array(hexString: string): Uint8Array {
+	if (hexString.length % 2 !== 0) {
+	  throw new Error("Invalid hex string. Length should be even.");
+	}
+  
+	const numberOfElements = hexString.length / 2;
+	return new Uint8Array(numberOfElements).map((_, index) => {
+	  const start = index * 2;
+	  const end = start + 2;
+	  const hexSubstring = hexString.substring(start, end);
+	  return parseInt(hexSubstring, 16);
+	});
+  }
+
+export async function derive_child_from_seed_and_insert(
+	parentIdentity: ProfileInterface,
+	password: string,
+	dbName: string,
+): Promise<string | false> {
+	const seed = await decrypt(parentIdentity.prvk, password)
+	const xprv = seed ? await calculateXprvFromSeed(seed) : '';
+	const childSeed = await derive_child_seed_from_xpriv(xprv!, parentIdentity.gap!);
+	const encryptedChildSeed = childSeed ? await encrypt(childSeed, password) : '';
+	const childHexPub = childSeed ? getPublicKey(hexStringToUint8Array(childSeed)) : '';
+	let parentLevel:number = parentIdentity.level!;
+
+	const derivedProfile: ProfileInterface = {
+		name: 'derived',
+		hexpub: childHexPub,
+		xpub: 'NULL',
+		prvk: encryptedChildSeed ? encryptedChildSeed : 'NULL',
+		level: ++parentLevel!,
+		gap: 0,
+		parent: parentIdentity.hexpub,
+		childIndex: parentIdentity.gap
+	}
+	const isInserted = await insertDerivedChild(dbName, derivedProfile);
+	const updateParent = !isInserted ? false : await updateValueInDb(
+		dbName,
+		'gap',
+		(++parentIdentity.gap!).toString(),
+		'hexpub',	
+		parentIdentity.hexpub,
+	)
+	if (!updateParent) return false;
+
+	return childHexPub.substring(2);
+}
+
+export async function derive_child_pub_from_xpub(
+	parentIdentity: ProfileInterface,
+	child_index: number
+): Promise<string | false> {
+	let derivedChildPub: string = await invoke('derive_child_pub_from_xpub', {
+		xpub: parentIdentity.xpub,
+		childIndex: child_index
+	});
+
+	return derivedChildPub.substring(2);
+}
+
+export async function derive_child_seed_from_xpriv(
+	xprv: string,
+	child_index: number,
+): Promise<string | false> {
+	// xprv = await derive_child_xprv_from_xprv
+	console.log(xprv);
+	let derivedChildSeed: string = await invoke('derive_child_seed_from_xprv', {
+		xprv: xprv,
+		childIndex: child_index
+	});
+
+	return derivedChildSeed;
 }
 
 // TODO!
@@ -211,11 +301,16 @@ export function uint8ArrayTo32HexString(uint8Array: Uint8Array): string {
 		.join('');
 }
 
+export function truncateString(str: string): string {
+	  return str.substring(0, 12) + ":" + str.substring(str.length - 6);
+}
+
 export function logOut() {
 	currentProfile.set(undefined);
 	appContextStore.set({
 		fileList: undefined, 
-		currentDbname: undefined
+		currentDbname: undefined,
+		sessionPass: undefined
 	});
 	goto('/')
 }

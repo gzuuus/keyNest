@@ -3,12 +3,13 @@
 
 use tauri::InvokeError;
 use serde::{Serialize, Deserialize};
+
 // FS
 use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::fs::OpenOptions;
+// use std::fs::OpenOptions;
 
 // Nostr
 use nostr_sdk::prelude::*;
@@ -19,7 +20,7 @@ use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 // Bitcoin
 extern crate bitcoin;
 use std::str::FromStr;
-use bitcoin::bip32::{ChildNumber, DerivationPath, Xpriv, Xpub};
+use bitcoin::bip32::{DerivationPath, Xpriv, Xpub};
 use bitcoin::hex::FromHex;
 use bitcoin::secp256k1::ffi::types::AlignedType;
 use bitcoin::secp256k1::Secp256k1;
@@ -29,6 +30,7 @@ use rusqlite::{Connection, Result};
 
 const ACCOUNT_PATH: &str = "./.nostr_accounts";
 
+// FS
 #[tauri::command]
 fn read_file(db_name: &str) -> serde_json::Value {
   println!("Reading file: {}", db_name);
@@ -64,24 +66,24 @@ fn list_files() -> Option<Vec<String>> {
     }
 }
 
- #[tauri::command]
- fn write_json(name: &str, data: serde_json::Value) -> bool {
-    let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
-    if !file_path.exists() {
-        fs::create_dir_all(file_path.parent().unwrap()).unwrap();
-    }
+//  #[tauri::command]
+//  fn write_json(name: &str, data: serde_json::Value) -> bool {
+//     let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
+//     if !file_path.exists() {
+//         fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+//     }
 
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(file_path.to_str().unwrap())
-        .unwrap();
+//     let file = OpenOptions::new()
+//         .write(true)
+//         .create(true)
+//         .truncate(true)
+//         .open(file_path.to_str().unwrap())
+//         .unwrap();
 
-    serde_json::to_writer_pretty(&file, &data).unwrap();
+//     serde_json::to_writer_pretty(&file, &data).unwrap();
 
-    true
-}
+//     true
+// }
 
  #[tauri::command]
  fn delete_file_by_name(filename: &str) -> bool {
@@ -94,6 +96,7 @@ fn list_files() -> Option<Vec<String>> {
      }
  }
 
+ // Encrypt and decrypt
  #[tauri::command]
  fn encrypt_string(to_encrypt: &str, key: &str) -> String {
     let mc = new_magic_crypt!(key, 256);
@@ -110,6 +113,7 @@ fn decrypt_cypher(to_decrypt: &str, key: &str) -> Result<String, String> {
     }
 }
 
+// Derivation
 // Bip32 example https://github.com/rust-bitcoin/rust-bitcoin/blob/0.31.x/bitcoin/examples/bip32.rs
 
 #[tauri::command]
@@ -120,10 +124,28 @@ fn derive_child_pub_from_xpub(xpub: &str, child_index: u32) -> String {
 
     let xpub: Xpub = xpub.parse().unwrap();
 
-    let zero = ChildNumber::from_normal_idx(child_index).unwrap();
-    let public_key = xpub.derive_pub(&secp, &[zero, zero]).unwrap().public_key;
-    println!("Derived public key: {}", public_key);
+    let render_path = format!("m/44h/1237h/{}h/0/0", child_index);
+    let path = DerivationPath::from_str(&render_path).unwrap();
+
+    let public_key = xpub.derive_pub(&secp, &path).unwrap().public_key;
+    println!("Derived public key at: {}, {}", path, public_key);
     public_key.to_string()
+}
+
+#[tauri::command]
+fn derive_child_seed_from_xprv(xprv: &str, child_index: u32) -> String {
+    let mut buf: Vec<AlignedType> = Vec::new();
+    buf.resize(Secp256k1::preallocate_size(), AlignedType::zeroed());
+    let secp = Secp256k1::preallocated_new(buf.as_mut_slice()).unwrap();
+
+    let xprv: Xpriv = Xpriv::from_str(xprv).unwrap();
+
+    let render_path = format!("m/44h/1237h/{}h/0/0", child_index);
+    let path = DerivationPath::from_str(&render_path).unwrap();
+
+    let child_seed = xprv.derive_priv(&secp, &path).unwrap().private_key.display_secret();
+    println!("Derived priv key at: {}, {}",path, child_seed);
+    child_seed.to_string()
 }
 
 #[tauri::command]
@@ -136,12 +158,15 @@ fn derive_child_xprv_from_xprv(xprv: &str, child_index: u32) -> String {
     let render_path = format!("m/44h/1237h/{}h/0/0", child_index);
     let path = DerivationPath::from_str(&render_path).unwrap();
     let child = root.derive_priv(&secp, &path).unwrap();
-    println!("Derived public key: {}", child);
+    println!("Derived priv key at: {}, {}", path, child);
     child.to_string()
 }
 
 #[tauri::command]
 fn calculate_xprv_from_seed(seed: &str) -> String {
+    let mut buf: Vec<AlignedType> = Vec::new();
+    buf.resize(Secp256k1::preallocate_size(), AlignedType::zeroed());
+    let secp = Secp256k1::preallocated_new(buf.as_mut_slice()).unwrap();
     let network = bitcoin::Network::Bitcoin;
     let seed = Vec::from_hex(seed).unwrap();
 
@@ -150,8 +175,10 @@ fn calculate_xprv_from_seed(seed: &str) -> String {
 
     let root = Xpriv::new_master(network, &seed).unwrap();
 
-    let xprv = root.to_string();
-    xprv
+    let path = DerivationPath::from_str("m/44h/1237h/0h/0/0").unwrap();
+    let xprv = root.derive_priv(&secp, &path).unwrap();
+    println!("Private key at {}: {}", path, xprv.to_string());
+    xprv.to_string()
 }
 
 #[tauri::command]
@@ -166,12 +193,14 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
    let root = Xpriv::new_master(network, &seed).unwrap();
 
    let path = DerivationPath::from_str("m/44h/1237h/0h/0/0").unwrap();
-   let xpub = Xpub::from_priv(&secp, &root);
+   let xprv = root.derive_priv(&secp, &path).unwrap();
+   let xpub = Xpub::from_priv(&secp, &xprv);
    println!("Public key at {}: {}", path, xpub);
    let xpub_string = xpub.to_string();
    xpub_string
 }
 
+// DB
 #[tauri::command]
 fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>, child_index: Option<&str>) -> bool {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
@@ -338,7 +367,6 @@ async fn main() -> Result<()> {
         .invoke_handler(tauri::generate_handler![
             read_file, 
             list_files, 
-            write_json, 
             delete_file_by_name, 
             encrypt_string, 
             decrypt_cypher, 
@@ -346,6 +374,7 @@ async fn main() -> Result<()> {
             calculate_xpub_from_seed,
             derive_child_pub_from_xpub,
             derive_child_xprv_from_xprv,
+            derive_child_seed_from_xprv,
             insert_into_db,
             account_count,
             get_root_identity_by_column_and_value,

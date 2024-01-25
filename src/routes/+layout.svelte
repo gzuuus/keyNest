@@ -16,11 +16,21 @@
 	import { goto } from '$app/navigation';
 	initializeStores();
 	
-	currentProfile.subscribe(setProfile);
-	async function setProfile() {
-		console.log($currentProfile);
-		goto(`/p/account`);
-	}
+	// currentProfile.subscribe(setProfile);
+	// async function setProfile() {
+	// 	console.log('hello')
+	// 	if ($appContextStore?.currentDbname) {
+	// 		//
+	// 	}
+	// 	// appContextStore.update((value)=>{
+	// 	// 	return {
+	// 	// 		fileList: value?.fileList,
+	// 	// 		currentDbname: value?.currentDbname,
+	// 	// 		sessionPass: undefined
+	// 	// 	}
+	// 	// })
+	// 	// goto(`/p/account`);
+	// }
 	// $: console.log('Reading appContextStore', $appContextStore);
 	// Highlight JS
 	// import hljs from 'highlight.js/lib/core';
@@ -53,7 +63,7 @@
 	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
 		{#if $appContextStore?.fileList?.length}
-			<AppRail>
+			<AppRail >
 				<AppRailAnchor href="/" selected={$page.url.pathname == '/'}>
 					<svelte:fragment slot="lead"><HouseIcon size={18} /></svelte:fragment>
 					<span>Home</span>
@@ -67,8 +77,11 @@
 			</AppRail>
 		{/if}
 	</svelte:fragment>
-	<div class=" grid place-content-center h-full w-auto">
+	<div class=" h-full">
 		<slot />
 	</div>
-	<svelte:fragment slot="pageFooter">{$page.url.href}</svelte:fragment>
+	<svelte:fragment slot="pageFooter">
+		<!-- {$page.url.href} -->
+		{$appContextStore?.sessionPass? `loged as ${$currentProfile?.name}`  : 'not logged in'}
+	</svelte:fragment>
 </AppShell>
