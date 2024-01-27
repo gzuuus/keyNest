@@ -20,7 +20,8 @@ use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 // Bitcoin
 extern crate bitcoin;
 use std::str::FromStr;
-use bitcoin::bip32::{DerivationPath, Xpriv, Xpub};
+use bitcoin::{bip32::{DerivationPath, Xpriv, Xpub}, hex::DisplayHex};
+use bip39::Mnemonic;
 use bitcoin::hex::FromHex;
 use bitcoin::secp256k1::ffi::types::AlignedType;
 use bitcoin::secp256k1::Secp256k1;
@@ -65,25 +66,6 @@ fn list_files() -> Option<Vec<String>> {
         Err(_) => None,
     }
 }
-
-//  #[tauri::command]
-//  fn write_json(name: &str, data: serde_json::Value) -> bool {
-//     let file_path = Path::new(ACCOUNT_PATH).join(format!("{}.json", name));
-//     if !file_path.exists() {
-//         fs::create_dir_all(file_path.parent().unwrap()).unwrap();
-//     }
-
-//     let file = OpenOptions::new()
-//         .write(true)
-//         .create(true)
-//         .truncate(true)
-//         .open(file_path.to_str().unwrap())
-//         .unwrap();
-
-//     serde_json::to_writer_pretty(&file, &data).unwrap();
-
-//     true
-// }
 
  #[tauri::command]
  fn delete_file_by_name(filename: &str) -> bool {
@@ -200,9 +182,22 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
    xpub_string
 }
 
+#[tauri::command]
+fn mnemonic_from_seed(seed: &str) -> String {
+    let mnemonic = Mnemonic::from_entropy(&Vec::from_hex(seed).unwrap()).unwrap().to_string();
+    mnemonic
+}
+
+#[tauri::command]
+fn seed_from_mnemonic(mnemonic: &str) -> String {
+    let norm_mnemonic = Mnemonic::parse(mnemonic).unwrap();
+    let seed = Mnemonic::to_entropy(&norm_mnemonic).to_lower_hex_string();
+    seed
+}
+
 // DB
 #[tauri::command]
-fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>, child_index: Option<&str>) -> bool {
+fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>, child_index: Option<&str>, comments: Option<&str>) -> bool {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
     conn.execute(
@@ -215,14 +210,15 @@ fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, p
             level INTEGER,
             gap INTEGER NULL,
             parent TEXT NULL,
-            childindex INTEGER NULL
+            child_index INTEGER NULL,
+            comments TEXT NULL
         )",
         [],
     ).unwrap();
 
     match conn.execute(
-        "INSERT INTO identity (name, hexpub, xpub, prvk, level, gap, parent, childindex) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);",
-        &[name, hexpub, xpub.unwrap_or("NULL"), prvk, level, gap.unwrap_or("NULL"), parent.unwrap_or("NULL"), child_index.unwrap_or("NULL")],
+        "INSERT INTO identity (name, hexpub, xpub, prvk, level, gap, parent, child_index, comments) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);",
+        &[name, hexpub, xpub.unwrap_or("NULL"), prvk, level, gap.unwrap_or("NULL"), parent.unwrap_or("NULL"), child_index.unwrap_or("NULL"), comments.unwrap_or("NULL")],
     ) {
         Ok(_) => true,
         Err(_) => false
@@ -249,6 +245,8 @@ struct Identity {
     parent: Option<String>,
     child_index: Option<i32>,
 }
+
+
 
 // TODO: fix this, make it flexible
 #[tauri::command]
@@ -310,7 +308,7 @@ fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) 
 fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
-    let render_query = format!("SELECT * FROM identity WHERE level != '0';");
+    let render_query = format!("SELECT * FROM identity WHERE level != '0' AND comments != 'DELETED';");
     let mut stmt = conn.prepare(&render_query).unwrap();
     let identity_iter = match stmt.query_map([], |row| {
         Ok(Identity {
@@ -375,6 +373,8 @@ async fn main() -> Result<()> {
             derive_child_pub_from_xpub,
             derive_child_xprv_from_xprv,
             derive_child_seed_from_xprv,
+            mnemonic_from_seed,
+            seed_from_mnemonic,
             insert_into_db,
             account_count,
             get_root_identity_by_column_and_value,

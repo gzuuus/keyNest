@@ -1,11 +1,11 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import IdentityCard from '$lib/components/identity-card.svelte';
 	import ParentCard from '$lib/components/parent-card.svelte';
 	import { decrypt, derive_child_from_seed_and_insert, derive_child_pub_from_xpub_and_insert, insertDerivedChild, logOut, readDb } from '$lib/resources/helpers';
 	import { appContextStore, currentProfile, derivedIdentitiesStore } from '$lib/stores/stores';
 	import type { ProfileInterface } from '$lib/types/interfaces';
 	import { focusTrap, getToastStore } from '@skeletonlabs/skeleton';
-	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 	const toastStore = getToastStore();
 
@@ -57,17 +57,22 @@
 		}
 		$appContextStore?.currentDbname? readDb($appContextStore?.currentDbname) : console.log("no db")
 	})
+	onMount(() => {
+		!$currentProfile && goto('/') 
+	})
 </script>
 
 {#if showLogin}
-	<h1 class="h2">{$currentProfile?.name}</h1>
-	<form use:focusTrap={true} on:submit|preventDefault={handleLogin} class="flex flex-col gap-2" >
-		<input class="input" bind:value={password} id="password" type="password" placeholder="Password"/>
-		<button type="submit" class="common-btn-sm-filled w-fit">Login</button>
-	</form>
+	<div class="grid place-content-center h-full text-center">
+		<h1 class="h2">{$currentProfile?.name}</h1>
+		<form use:focusTrap={true} on:submit|preventDefault={handleLogin} class="flex flex-col gap-2" >
+			<input class="input" bind:value={password} id="password" type="password" placeholder="Password"/>
+			<button type="submit" class="common-btn-sm-filled w-auto">Login</button>
+		</form>
+	</div>
 {:else}
-	<div class=" break-words grid grid-cols-1 gap-4">
-		<section>
+	<div class=" break-words grid grid-row-1 gap-4">
+		<section >
 			{#if $currentProfile}
 			<ParentCard profile={$currentProfile} />
 			{/if}

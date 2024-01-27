@@ -4,10 +4,9 @@
 	import { FileDropzone, focusTrap } from '@skeletonlabs/skeleton';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 	import { goto } from '$app/navigation';
-	import { object, string } from 'zod';
 	import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 	import CloseIcon from '$lib/resources/icons/close-icon.svelte';
-	import { calculateXpubFromSeed, encrypt, insertInDb, writeFile } from '$lib/resources/helpers';
+	import { calculateXpubFromSeed, encrypt, insertInDb, uint8ArrayTo32HexString } from '$lib/resources/helpers';
 	import { Accordion, AccordionItem } from '@skeletonlabs/skeleton';
 	import GearIcon from '$lib/resources/icons/gear-icon.svelte';
 	import { appContextStore, currentProfile } from '$lib/stores/stores';
@@ -15,12 +14,14 @@
 	interface CreateAccForm {
 		name: string;
 		pass: string;
+		nsec?: string;
 	}
 
 	let formData: Partial<CreateAccForm> = {};
 
 	let name: string;
 	let pass: string;
+	let nsec: string | undefined;
 
 	const toastStore = getToastStore();
 
@@ -37,7 +38,7 @@
 							try {
 								const data: ProfileInterface = JSON.parse(fileContent);
 								console.log(data);
-								const writeFiles = await writeFile(data.name, data);
+								const writeFiles = ''//await writeFile(data.name, data);
 								writeFiles
 									? toastStore.trigger({
 											message: 'Profile created',
@@ -74,23 +75,26 @@
 	}
 	async function handleSubmit(): Promise<void> {
 		function validateFormData(): boolean {
-			return !!formData && Object.values(formData).every(Boolean);
-		}
+        const requiredFields = ['name', 'pass'];
+        for (const field of requiredFields) {
+            if (!(field in formData)) {
+                console.warn(`Missing required field: ${field}`);
+                return false;
+            }
+        }
+        return true;
+    }
 		function readonlyValue(value: unknown): unknown {
 			return typeof value === 'object' ? { ...value } : value;
 		}
 		formData = {
 			name,
-			pass
+			pass,
+			nsec
 		};
-		function uint8ArrayTo32HexString(uint8Array: Uint8Array): string {
-			return [...uint8Array]
-				.map((b) => b.toString(16).padStart(2, '0'))
-				.slice(0, 32)
-				.join('');
-		}
+		console.log(formData)
 
-		let insecurePrvk = generateSecretKey();
+		let insecurePrvk = nsec ? nip19.decode(nsec!).data as Uint8Array : generateSecretKey();
 		let hexpub = getPublicKey(insecurePrvk);
 		let encryptedNsec = await encrypt(uint8ArrayTo32HexString(insecurePrvk), pass);
 		let xpub = await calculateXpubFromSeed(uint8ArrayTo32HexString(insecurePrvk));
@@ -101,16 +105,18 @@
 			prvk: encryptedNsec,
 			level: 0,
 			gap: 0,
+			comments: "root"
 		};
-
+		
 		if (!validateFormData()) return;
 		try {
 			const formValues = Object.fromEntries(
 				Object.entries(extendedFormData).map(([key, val]) => [key, readonlyValue(val)])
 			) as Readonly<Record<keyof ProfileInterface, unknown>>;
+			
 			let dbName = `${formData.name}.db`
 			let craftFile = await insertInDb(dbName, formValues as ProfileInterface);
-			// console.log(craftFile);
+			 console.log(craftFile);
 			createNew = false;
 			appContextStore.set({ 
 				fileList: [dbName],
@@ -171,7 +177,15 @@
 					<svelte:fragment slot="lead"><GearIcon size={18} /></svelte:fragment>
 					<svelte:fragment slot="summary">Advanced</svelte:fragment>
 					<svelte:fragment slot="content">
-						(content)
+						<label class="label"
+						>Import nsec:
+						<input
+							class="input"
+							type="password"
+							placeholder="Enter Nsec"
+							bind:value={nsec}
+							required
+						/>
 					</svelte:fragment>
 				</AccordionItem>
 			</Accordion>

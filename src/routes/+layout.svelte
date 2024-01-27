@@ -59,7 +59,7 @@
 <AppShell>
 	<svelte:fragment slot="header">
 		<button on:click={() => goto('/')}>Home</button>
-		<button on:click={() => goto('/test')}>test</button>
+		<button on:click={() => goto('/settings')}>Settings</button>
 	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
 		{#if $appContextStore?.fileList?.length}

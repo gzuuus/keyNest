@@ -29,7 +29,7 @@
 		if ($appContextStore?.currentDbname == file) {
 			goto('/p/account');
 		} else {
-			getRootbyColumnAndValue(file, 'name', file.slice(0, -3))
+			await getRootbyColumnAndValue(file, 'name', file.slice(0, -3))
 			appContextStore.update((value)=>{
 				return {
 					fileList: value?.fileList,
@@ -48,7 +48,7 @@
 <div>
 	{#if $appContextStore?.fileList}
 			<section class="common-container">
-				<nav class="list-nav bg-surface-active-token p-4 rounded flex flex-col gap-1">
+				<nav class="list-nav p-4 rounded flex flex-col gap-1">
 					<h1 class="h3">Select profile</h1>
 					<hr class="!border-t-2" />
 					<ul class="flex flex-col gap-2">

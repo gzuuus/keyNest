@@ -7,7 +7,8 @@ export interface ProfileInterface {
 	level?: number;
 	gap?: number;
 	parent?: string;
-	childIndex?: number;
+	child_index?: number;
+	comments?: string;
   }
 
 export interface AppContext {

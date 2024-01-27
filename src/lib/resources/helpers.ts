@@ -4,10 +4,6 @@ import type { ProfileInterface} from '$lib/types/interfaces';
 import { invoke } from '@tauri-apps/api';
 import { getPublicKey } from 'nostr-tools';
 
-export async function writeFile(name: string, data: any): Promise<boolean> {
-	return await invoke('write_json', { name, data });
-}
-
 export async function insertInDb(name: string, data: ProfileInterface): Promise<boolean> {
 	return await invoke('insert_into_db', { 
 		dbName: name, 
@@ -18,7 +14,8 @@ export async function insertInDb(name: string, data: ProfileInterface): Promise<
 		level: data.level?.toString(),
 		gap: data.gap?.toString(),
 		parent: data.parent,
-		childIndex: data.childIndex?.toString()
+		childIndex: data.child_index?.toString(),
+		comments: data.comments
 	  });
 }
 
@@ -49,7 +46,6 @@ export async function readDb(dbName: string): Promise<ProfileInterface[]> {
 	return content;
   }
 
-// TODO dont delete, just mark as deleted
 export async function deleteFile(fileName: string): Promise<boolean> {
 	try {
 		let deleteFile = await invoke('delete_file_by_name', { filename: fileName });
@@ -81,12 +77,15 @@ export async function updateValueInDb(dbName: string, column: string, newValue: 
 
 export async function deleteIdentityFromDb(dbName: string, column: string, value: string): Promise<boolean> {
 	try {
-		let deleteFile: boolean = await invoke('delete_identity_from_db', { 
+		let deleteFile: boolean = await invoke("update_identity_in_db", { 
 			dbName: dbName,
-			column: column,
-			value: value
+			column: 'comments',
+			value: value,
+			whereColumn: column,
+			newValue: 'DELETED'
 		  });
 		if (deleteFile) readDb(dbName)
+		console.log(deleteFile);
 		return deleteFile;
 	} catch (error) {
 		console.log(error);
@@ -156,7 +155,7 @@ export async function derive_child_pub_from_xpub_and_insert(
 		level: ++parentLevel!,
 		gap: 0,
 		parent: parentIdentity.hexpub,
-		childIndex: parentIdentity.gap
+		child_index: parentIdentity.gap
 	}
 
 	const isInserted = await insertDerivedChild(dbName, derivedProfile);
@@ -206,7 +205,7 @@ export async function derive_child_from_seed_and_insert(
 		level: ++parentLevel!,
 		gap: 0,
 		parent: parentIdentity.hexpub,
-		childIndex: parentIdentity.gap
+		child_index: parentIdentity.gap
 	}
 	const isInserted = await insertDerivedChild(dbName, derivedProfile);
 	const updateParent = !isInserted ? false : await updateValueInDb(
@@ -231,6 +230,16 @@ export async function derive_child_pub_from_xpub(
 	});
 
 	return derivedChildPub.substring(2);
+}
+
+export async function mnemonics_from_seed(
+	seed: string
+): Promise<string | undefined> {
+	let mnemonics: string = await invoke('mnemonic_from_seed', {
+		seed: seed
+	});
+
+	return mnemonics;
 }
 
 export async function derive_child_seed_from_xpriv(
@@ -263,7 +272,7 @@ export async function insertDerivedChild(
 			level: pData.level?.toString(),
 			gap: pData.gap?.toString(),
 			parent: pData.parent,
-			childIndex: pData.childIndex?.toString()
+			childIndex: pData.child_index?.toString()
 		});
 		return derived;
 	} catch (error) {
@@ -290,7 +299,6 @@ export async function calculateXprvFromSeed(seed: string): Promise<string> {
 
 export async function calculateXpubFromSeed(seed: string): Promise<string> {
 	let xpub: string = await invoke('calculate_xpub_from_seed', { seed: seed });
-	console.log(xpub);
 	return xpub;
 }
 
