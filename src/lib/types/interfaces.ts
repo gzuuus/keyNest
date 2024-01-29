@@ -16,3 +16,8 @@ export interface AppContext {
     currentDbname: string | undefined;
 	sessionPass?: string | undefined;
 }
+
+export interface id {
+	mnemonic: string;
+	seed: string;
+}

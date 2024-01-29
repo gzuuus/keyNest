@@ -9,10 +9,12 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-// use std::fs::OpenOptions;
 
 // Nostr
 use nostr_sdk::prelude::*;
+use nostr::nips::nip06::{FromMnemonic, GenerateMnemonic};
+use nostr::nips::nip19::ToBech32;
+use nostr::Keys;
 
 // Encrypt
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
@@ -106,8 +108,7 @@ fn derive_child_pub_from_xpub(xpub: &str, child_index: u32) -> String {
 
     let xpub: Xpub = xpub.parse().unwrap();
 
-    let render_path = format!("m/44h/1237h/{}h/0/0", child_index);
-    let path = DerivationPath::from_str(&render_path).unwrap();
+    let path = DerivationPath::from_str(&format!("m/44h/1237h/{}h/0/0", child_index)).unwrap();
 
     let public_key = xpub.derive_pub(&secp, &path).unwrap().public_key;
     println!("Derived public key at: {}, {}", path, public_key);
@@ -122,8 +123,7 @@ fn derive_child_seed_from_xprv(xprv: &str, child_index: u32) -> String {
 
     let xprv: Xpriv = Xpriv::from_str(xprv).unwrap();
 
-    let render_path = format!("m/44h/1237h/{}h/0/0", child_index);
-    let path = DerivationPath::from_str(&render_path).unwrap();
+    let path = DerivationPath::from_str(&format!("m/44h/1237h/{}h/0/0", child_index)).unwrap();
 
     let child_seed = xprv.derive_priv(&secp, &path).unwrap().private_key.display_secret();
     println!("Derived priv key at: {}, {}",path, child_seed);
@@ -137,8 +137,8 @@ fn derive_child_xprv_from_xprv(xprv: &str, child_index: u32) -> String {
     let secp = Secp256k1::preallocated_new(buf.as_mut_slice()).unwrap();
     
     let root = Xpriv::from_str(xprv).unwrap();
-    let render_path = format!("m/44h/1237h/{}h/0/0", child_index);
-    let path = DerivationPath::from_str(&render_path).unwrap();
+
+    let path = DerivationPath::from_str(&format!("m/44h/1237h/{}h/0/0", child_index)).unwrap();
     let child = root.derive_priv(&secp, &path).unwrap();
     println!("Derived priv key at: {}, {}", path, child);
     child.to_string()
@@ -185,14 +185,46 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
 #[tauri::command]
 fn mnemonic_from_seed(seed: &str) -> String {
     let mnemonic = Mnemonic::from_entropy(&Vec::from_hex(seed).unwrap()).unwrap().to_string();
+    println!("Mnemonic: {}", mnemonic);
     mnemonic
 }
 
 #[tauri::command]
-fn seed_from_mnemonic(mnemonic: &str) -> String {
+fn seed_from_mnemonic(mnemonic: &str, passphrase: Option<&str>) -> String {
     let norm_mnemonic = Mnemonic::parse(mnemonic).unwrap();
-    let seed = Mnemonic::to_entropy(&norm_mnemonic).to_lower_hex_string();
-    seed
+    let word_count = norm_mnemonic.word_count();
+    match word_count {
+        12 => {
+            let seed = Keys::from_mnemonic(mnemonic, Some(passphrase.unwrap_or(""))).unwrap().secret_key().unwrap().display_secret().to_string();
+            println!("Seed(12): {}", seed);
+            seed
+        }
+        24 => {
+            let seed = Mnemonic::to_entropy(&norm_mnemonic).to_lower_hex_string();
+            println!("Seed: {}", seed);
+            seed
+        }
+        _ => {
+            println!("Invalid word count: {}", word_count);
+            "".to_string()
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct Id {
+    mnemonic: String,
+    seed: String,
+}
+
+#[tauri::command]
+fn generate_id() -> Id {
+    let mnemonic = Keys::generate_mnemonic(12).unwrap().to_string();
+    let seed = Keys::from_mnemonic(mnemonic.as_str(), Some("")).unwrap().secret_key().unwrap().to_bech32().unwrap().to_string();
+    Id {
+        mnemonic,
+        seed,
+    }
 }
 
 // DB
@@ -244,17 +276,14 @@ struct Identity {
     gap: Option<i32>,
     parent: Option<String>,
     child_index: Option<i32>,
+    comments: Option<String>,
 }
 
-
-
-// TODO: fix this, make it flexible
 #[tauri::command]
-fn get_root_identity_by_column_and_value(db_name: &str, column: &str, value: &str) -> Result<Vec<Identity>, InvokeError> {
+fn get_root_identity_from_db(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
     let conn = Connection::open(render_db_name).unwrap();
-    let render_query = format!("SELECT * FROM identity WHERE {} = '{}' AND level = '0';", column, value);
-    let mut stmt = conn.prepare(&render_query).unwrap();
+    let mut stmt = conn.prepare("SELECT * FROM identity WHERE level = '0';").unwrap();
     let identity = match stmt.query_row([], |row| {
         Ok(Identity {
             id: row.get(0)?,
@@ -266,6 +295,7 @@ fn get_root_identity_by_column_and_value(db_name: &str, column: &str, value: &st
             gap: row.get(6)?,
             parent: row.get(7)?,
             child_index: None,
+            comments: row.get(9)?,
         })
     }) {
         Ok(identity) => identity,
@@ -291,6 +321,7 @@ fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) 
             gap: row.get(6)?,
             parent: row.get(7)?,
             child_index: row.get(8)?,
+            comments: row.get(9)?,
         })
     }) {
         Ok(identity_iter) => identity_iter,
@@ -321,6 +352,7 @@ fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
             gap: row.get(6)?,
             parent: row.get(7)?,
             child_index: row.get(8)?,
+            comments: row.get(9)?,
         })
     }) {
         Ok(identity_iter) => identity_iter,
@@ -334,18 +366,16 @@ fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
     Ok(identities)
 }
 
-#[tauri::command]
-fn delete_identity_from_db(db_name: &str, column: &str, value: &str) -> bool {
-    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
-    let conn = Connection::open(render_db_name).unwrap();
-    // let render_query = format!("DELETE FROM identity WHERE {} = '{}';", column, value);
-    let render_query = format!("DELETE FROM identity WHERE {} = '{}';", column, value);
+// #[tauri::command]
+// fn delete_identity_from_db(db_name: &str, column: &str, value: &str) -> bool {
+//     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+//     let conn = Connection::open(render_db_name).unwrap();
     
-    match conn.execute(&render_query, []) {
-        Ok(_) => true,
-        Err(_) => false
-    }
-}
+//     match conn.execute(&format!("DELETE FROM identity WHERE {} = '{}';", column, value), []) {
+//         Ok(_) => true,
+//         Err(_) => false
+//     }
+// }
 
 #[tauri::command]
 fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &str, where_column: &str) -> bool {
@@ -364,7 +394,7 @@ async fn main() -> Result<()> {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             read_file, 
-            list_files, 
+            list_files,
             delete_file_by_name, 
             encrypt_string, 
             decrypt_cypher, 
@@ -377,11 +407,11 @@ async fn main() -> Result<()> {
             seed_from_mnemonic,
             insert_into_db,
             account_count,
-            get_root_identity_by_column_and_value,
+            get_root_identity_from_db,
             get_identities_by_column_and_value,
             get_all_identities,
-            delete_identity_from_db,
-            update_identity_in_db
+            update_identity_in_db,
+            generate_id,
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

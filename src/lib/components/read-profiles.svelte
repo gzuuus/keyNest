@@ -29,7 +29,7 @@
 		if ($appContextStore?.currentDbname == file) {
 			goto('/p/account');
 		} else {
-			await getRootbyColumnAndValue(file, 'name', file.slice(0, -3))
+			await getRootbyColumnAndValue(file)
 			appContextStore.update((value)=>{
 				return {
 					fileList: value?.fileList,

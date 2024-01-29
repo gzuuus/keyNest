@@ -1,8 +1,10 @@
 import { goto } from '$app/navigation';
 import { appContextStore, currentProfile, derivedIdentitiesStore } from '$lib/stores/stores';
-import type { ProfileInterface} from '$lib/types/interfaces';
+import type { ProfileInterface, id} from '$lib/types/interfaces';
 import { invoke } from '@tauri-apps/api';
 import { getPublicKey } from 'nostr-tools';
+import { nsecEncode } from 'nostr-tools/nip19';
+import qrcode from 'qrcode-generator';
 
 export async function insertInDb(name: string, data: ProfileInterface): Promise<boolean> {
 	return await invoke('insert_into_db', { 
@@ -19,11 +21,9 @@ export async function insertInDb(name: string, data: ProfileInterface): Promise<
 	  });
 }
 
-export async function getRootbyColumnAndValue(dbName: string, column: string, value: string): Promise<ProfileInterface[]> {
-    let content: ProfileInterface[] = await invoke("get_root_identity_by_column_and_value", { 
+export async function getRootbyColumnAndValue(dbName: string): Promise<ProfileInterface[]> {
+    let content: ProfileInterface[] = await invoke("get_root_identity_from_db", { 
       dbName: dbName,
-      column: column,
-      value: value
     });
     currentProfile.set(content[0]);
 	appContextStore.update((value) => {
@@ -232,6 +232,11 @@ export async function derive_child_pub_from_xpub(
 	return derivedChildPub.substring(2);
 }
 
+export async function generate_id(): Promise<id> {
+	let id: id = await invoke('generate_id')
+	return id;
+}
+
 export async function mnemonics_from_seed(
 	seed: string
 ): Promise<string | undefined> {
@@ -240,6 +245,16 @@ export async function mnemonics_from_seed(
 	});
 
 	return mnemonics;
+}
+
+export async function seed_from_mnemonics(
+	mnemonics: string
+): Promise<string | undefined> {
+	let seed: string = await invoke('seed_from_mnemonic', {
+		mnemonic: mnemonics
+	});
+	console.log(seed);
+	return seed;
 }
 
 export async function derive_child_seed_from_xpriv(
@@ -311,6 +326,20 @@ export function uint8ArrayTo32HexString(uint8Array: Uint8Array): string {
 
 export function truncateString(str: string): string {
 	  return str.substring(0, 12) + ":" + str.substring(str.length - 6);
+}
+
+export function encodeSeedToNsec ( value: string): string {
+	let uint8array = hexStringToUint8Array(value);
+	let nsec = nsecEncode(uint8array);
+	return nsec
+}
+
+export function generateQRCode(value: string): string {
+	let qr = qrcode(0, "L");
+	qr.addData(value);
+	qr.make();
+	let qrImageUrl = qr.createDataURL();
+	return qrImageUrl;
 }
 
 export function logOut() {

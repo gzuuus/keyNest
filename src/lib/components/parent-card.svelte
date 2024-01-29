@@ -1,51 +1,30 @@
 <script lang="ts">
-	import { decrypt, deleteIdentityFromDb, hexStringToUint8Array, mnemonics_from_seed, truncateString } from "$lib/resources/helpers";
+	import { decrypt, encodeSeedToNsec, generateQRCode, truncateString } from "$lib/resources/helpers";
 	import PlusIcon from "$lib/resources/icons/plus-icon.svelte";
 	import { appContextStore } from "$lib/stores/stores";
 	import type { ProfileInterface } from "$lib/types/interfaces";
 	import { Accordion, AccordionItem, Avatar } from "@skeletonlabs/skeleton";
 	import { nip19 } from "nostr-tools";
-	import { get } from "svelte/store";
-    import QRcode from "qrcode-generator";
 	import QrIcon from "$lib/resources/icons/qr-icon.svelte";
-	import KeyIcon from "$lib/resources/icons/key-icon.svelte";
+	import { npubEncode } from "nostr-tools/nip19";
 
     export let profile: ProfileInterface
-    let qrImageUrl: string = "";
-    let showQR: boolean = false;
-    let showSecretQr: boolean = false;
+    let publicQrCode: string | undefined
+    let showQR: boolean = false
+    let secretQrCode: string | undefined
     let secret: string | undefined
-    let mnemonics: string | undefined
-    function generateQRCode(value: string) {
-        let qr = QRcode(0, "L");
-        qr.addData(value);
-        qr.make();
-        showQR = !showQR;
-        qrImageUrl = qr.createDataURL();
-        return qrImageUrl;
-    }
+
     async function revealSecret(value: string): Promise<string> {
         secret = await decrypt(value, $appContextStore?.sessionPass!)
-        mnemonics = await mnemonics_from_seed(secret!)
-        console.log(mnemonics)
+        secretQrCode = generateQRCode(secret!)
         return secret!
     }
 
-    function encodeSeedToNsec ( value: string): string {
-        let uint8array = hexStringToUint8Array(value);
-        let nsec = nip19.nsecEncode(uint8array);
-        return nsec
-    }
-    async function generateSecretQRCode(value: string) {
-        secret = await revealSecret(value)
-        value = secret ? secret : ''
-        let qr = QRcode(0, "L");
-        qr.addData(value);
-        qr.make();
-        showSecretQr = !showSecretQr;
-        qrImageUrl = qr.createDataURL();
-        if (!showSecretQr) qrImageUrl = "";
-        return qrImageUrl;
+    function handleShowPubQr() {
+        showQR = !showQR
+        if (!publicQrCode) {
+            publicQrCode = generateQRCode(nip19.npubEncode(profile.hexpub))
+        }
     }
 </script>
 <div class=" flex flex-row justify-between gap-2">
@@ -53,11 +32,8 @@
     <h1 class="h1">{profile.name}</h1>
     <section class=" inline-flex gap-1">
         <p class="badge w-fit variant-soft ">{truncateString(nip19.npubEncode(profile.hexpub))}</p>
-        <button class=" badge {showQR ? 'variant-filled' : 'variant-soft'}"  on:click={() => generateQRCode(nip19.npubEncode(profile.hexpub))}
+        <button class=" badge {showQR ? 'variant-filled' : 'variant-soft'}"  on:click={() => handleShowPubQr() }
             ><QrIcon size={16} /></button
-        >
-        <button class=" badge {showSecretQr ? 'variant-filled' : 'variant-soft'}"  on:click={() => generateSecretQRCode(profile?.prvk ? profile?.prvk : '') }
-            ><KeyIcon size={16} /></button
         >
     </section>
     <section class="w-fit max-w-screen-sm">
@@ -67,14 +43,22 @@
             <svelte:fragment slot="summary">More info</svelte:fragment>
             <svelte:fragment slot="content">
                 <code>Xpub: {profile.xpub}</code>
+                {#if profile.gap != 0}
                 <p>Gap: {profile.gap}</p>
-                <p>Private Key: {secret ? encodeSeedToNsec(secret) : profile.prvk}</p>
-                {#if mnemonics}
-                <p>Mnemonics: {mnemonics}</p>
+                {/if}
+                <p>Public Key: {npubEncode(profile.hexpub)}</p>
+                <p>Private Key: {secret ? encodeSeedToNsec(secret) : 'Private key is encrypted'}</p>
+                {#if secretQrCode}
+                    <Avatar
+                    border="border-4 border-surface-300-600-token hover:!border-primary-500"
+                    cursor="cursor-pointer"
+                    src={secretQrCode} 
+                    width=" w-36"
+                    rounded="rounded-3xl"
+                    alt="QR Code"
+                    />
                 {/if}
                 <button class="btn btn-sm variant-filled" on:click={() => revealSecret(profile?.prvk ? profile?.prvk : '')}>Reveal</button>
-                <hr/>
-                <code class="text-sm">{JSON.stringify(profile)}</code>
                 <hr/>
             </svelte:fragment>
         </AccordionItem>
@@ -82,13 +66,15 @@
     </section>
 </section>
 <section >
-    <Avatar class="{showQR || showSecretQr ? 'common-ring' : 'hidden'}" 
+    {#if publicQrCode && showQR}
+    <Avatar
     border="border-4 border-surface-300-600-token hover:!border-primary-500"
     cursor="cursor-pointer"
-    src={qrImageUrl} 
+    src={publicQrCode} 
     width="w-28"
     rounded="rounded-3xl"
     alt="QR Code"
     />
+    {/if}
 </section>
 </div>
