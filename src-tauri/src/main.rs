@@ -111,7 +111,7 @@ fn derive_child_pub_from_xpub(xpub: &str, child_index: u32) -> String {
     let path = DerivationPath::from_str(&format!("m/44h/1237h/{}h/0/0", child_index)).unwrap();
 
     let public_key = xpub.derive_pub(&secp, &path).unwrap().public_key;
-    println!("Derived public key at: {}, {}", path, public_key);
+    // println!("Derived public key at: {}, {}", path, public_key);
     public_key.to_string()
 }
 
@@ -126,7 +126,7 @@ fn derive_child_seed_from_xprv(xprv: &str, child_index: u32) -> String {
     let path = DerivationPath::from_str(&format!("m/44h/1237h/{}h/0/0", child_index)).unwrap();
 
     let child_seed = xprv.derive_priv(&secp, &path).unwrap().private_key.display_secret();
-    println!("Derived priv key at: {}, {}",path, child_seed);
+    // println!("Derived priv key at: {}, {}",path, child_seed);
     child_seed.to_string()
 }
 
@@ -140,7 +140,7 @@ fn derive_child_xprv_from_xprv(xprv: &str, child_index: u32) -> String {
 
     let path = DerivationPath::from_str(&format!("m/44h/1237h/{}h/0/0", child_index)).unwrap();
     let child = root.derive_priv(&secp, &path).unwrap();
-    println!("Derived priv key at: {}, {}", path, child);
+    // println!("Derived priv key at: {}, {}", path, child);
     child.to_string()
 }
 
@@ -159,7 +159,7 @@ fn calculate_xprv_from_seed(seed: &str) -> String {
 
     let path = DerivationPath::from_str("m/44h/1237h/0h/0/0").unwrap();
     let xprv = root.derive_priv(&secp, &path).unwrap();
-    println!("Private key at {}: {}", path, xprv.to_string());
+    // println!("Private key at {}: {}", path, xprv.to_string());
     xprv.to_string()
 }
 
@@ -177,7 +177,7 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
    let path = DerivationPath::from_str("m/44h/1237h/0h/0/0").unwrap();
    let xprv = root.derive_priv(&secp, &path).unwrap();
    let xpub = Xpub::from_priv(&secp, &xprv);
-   println!("Public key at {}: {}", path, xpub);
+//    println!("Public key at {}: {}", path, xpub);
    let xpub_string = xpub.to_string();
    xpub_string
 }
@@ -185,7 +185,7 @@ fn calculate_xpub_from_seed(seed: &str)-> String {
 #[tauri::command]
 fn mnemonic_from_seed(seed: &str) -> String {
     let mnemonic = Mnemonic::from_entropy(&Vec::from_hex(seed).unwrap()).unwrap().to_string();
-    println!("Mnemonic: {}", mnemonic);
+    // println!("Mnemonic: {}", mnemonic);
     mnemonic
 }
 
@@ -196,16 +196,16 @@ fn seed_from_mnemonic(mnemonic: &str, passphrase: Option<&str>) -> String {
     match word_count {
         12 => {
             let seed = Keys::from_mnemonic(mnemonic, Some(passphrase.unwrap_or(""))).unwrap().secret_key().unwrap().display_secret().to_string();
-            println!("Seed(12): {}", seed);
+            // println!("Seed(12): {}", seed);
             seed
         }
         24 => {
             let seed = Mnemonic::to_entropy(&norm_mnemonic).to_lower_hex_string();
-            println!("Seed: {}", seed);
+            // println!("Seed: {}", seed);
             seed
         }
         _ => {
-            println!("Invalid word count: {}", word_count);
+            // println!("Invalid word count: {}", word_count);
             "".to_string()
         }
     }
@@ -391,6 +391,9 @@ fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &s
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if !Path::new(ACCOUNT_PATH).exists() {
+        fs::create_dir(ACCOUNT_PATH).expect("Failed to create directory");
+    }
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             read_file, 
