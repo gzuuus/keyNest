@@ -12,7 +12,7 @@
 	},
 	"tauri": {
 		"allowlist": {
-			"all": false
+			"all": true
 		},
 		"bundle": {
 			"active": true,
@@ -58,7 +58,7 @@
 				"fullscreen": false,
 				"height": 600,
 				"resizable": true,
-				"title": "Lakey",
+				"title": "KeyNest",
 				"width": 800
 			}
 		]

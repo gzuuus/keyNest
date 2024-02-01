@@ -1,4 +1,3 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::InvokeError;
@@ -9,6 +8,8 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::fs::create_dir_all;
+use std::sync::Mutex;
 
 // Nostr
 use nostr_sdk::prelude::*;
@@ -31,13 +32,19 @@ use bitcoin::secp256k1::Secp256k1;
 // DB
 use rusqlite::{Connection, Result};
 
-const ACCOUNT_PATH: &str = "./.nostr_accounts";
+static ACCOUNT_PATH: Mutex<Option<String>> = Mutex::new(None);
 
 // FS
 #[tauri::command]
+fn test_dir() -> String {
+    println!("Testing directory, {}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap());
+    let path = ACCOUNT_PATH.lock().unwrap().as_ref().unwrap().to_string();
+    path
+}
+#[tauri::command]
 fn read_file(db_name: &str) -> serde_json::Value {
   println!("Reading file: {}", db_name);
-  let file_path = Path::new(ACCOUNT_PATH).join(db_name);
+  let file_path = Path::new(ACCOUNT_PATH.lock().unwrap().as_ref().unwrap()).join(db_name);
   let mut file = File::open(file_path).expect("Failed to open file");
   let mut contents = Vec::new();
   file.read_to_end(&mut contents).expect("Failed to read file");
@@ -47,7 +54,7 @@ fn read_file(db_name: &str) -> serde_json::Value {
 
 #[tauri::command]
 fn list_files() -> Option<Vec<String>> {
-    match fs::read_dir(ACCOUNT_PATH) {
+    match fs::read_dir(ACCOUNT_PATH.lock().unwrap().as_ref().unwrap()) {
         Ok(entries) => {
             let mut files = Vec::new();
             for entry in entries {
@@ -72,7 +79,7 @@ fn list_files() -> Option<Vec<String>> {
  #[tauri::command]
  fn delete_file_by_name(filename: &str) -> bool {
      println!("Deleting file: {}", filename);
-     let file_path = Path::new(ACCOUNT_PATH).join(filename);
+     let file_path = Path::new(ACCOUNT_PATH.lock().unwrap().as_ref().unwrap()).join(filename);
  
      match fs::remove_file(&file_path) {
          Ok(_) => true,
@@ -230,7 +237,7 @@ fn generate_id() -> Id {
 // DB
 #[tauri::command]
 fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, prvk: &str, level: &str, gap: Option<&str>, parent: Option<&str>, child_index: Option<&str>, comments: Option<&str>) -> bool {
-    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap(), db_name);
     let conn = Connection::open(render_db_name).unwrap();
     conn.execute(
         "CREATE TABLE IF NOT EXISTS identity (
@@ -259,7 +266,7 @@ fn insert_into_db(db_name: &str, name: &str, hexpub: &str, xpub: Option<&str>, p
 
 #[tauri::command]
 fn account_count(db_name: &str) -> Result<usize, InvokeError> {
-    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap(), db_name, ".db");
     let conn = Connection::open(render_db_name).unwrap();
     let count: usize = conn.query_row("SELECT count(*) FROM identity", [], |row| row.get(0)).unwrap();
     Ok(count)
@@ -281,7 +288,7 @@ struct Identity {
 
 #[tauri::command]
 fn get_root_identity_from_db(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
-    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap(), db_name);
     let conn = Connection::open(render_db_name).unwrap();
     let mut stmt = conn.prepare("SELECT * FROM identity WHERE level = '0';").unwrap();
     let identity = match stmt.query_row([], |row| {
@@ -306,7 +313,7 @@ fn get_root_identity_from_db(db_name: &str) -> Result<Vec<Identity>, InvokeError
 
 #[tauri::command]
 fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) -> Result<Vec<Identity>, InvokeError> {
-    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH, db_name, ".db");
+    let render_db_name = format!("{}/{}{}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap(), db_name, ".db");
     let conn = Connection::open(render_db_name).unwrap();
     let render_query = format!("SELECT * FROM identity WHERE {} = '{}';", column, value);
     let mut stmt = conn.prepare(&render_query).unwrap();
@@ -337,7 +344,7 @@ fn get_identities_by_column_and_value(db_name: &str, column: &str, value: &str) 
 
 #[tauri::command]
 fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
-    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap(), db_name);
     let conn = Connection::open(render_db_name).unwrap();
     let render_query = format!("SELECT * FROM identity WHERE level != '0' AND comments != 'DELETED';");
     let mut stmt = conn.prepare(&render_query).unwrap();
@@ -366,20 +373,9 @@ fn get_all_identities(db_name: &str) -> Result<Vec<Identity>, InvokeError> {
     Ok(identities)
 }
 
-// #[tauri::command]
-// fn delete_identity_from_db(db_name: &str, column: &str, value: &str) -> bool {
-//     let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
-//     let conn = Connection::open(render_db_name).unwrap();
-    
-//     match conn.execute(&format!("DELETE FROM identity WHERE {} = '{}';", column, value), []) {
-//         Ok(_) => true,
-//         Err(_) => false
-//     }
-// }
-
 #[tauri::command]
 fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &str, where_column: &str) -> bool {
-    let render_db_name = format!("{}/{}", ACCOUNT_PATH, db_name);
+    let render_db_name = format!("{}/{}", ACCOUNT_PATH.lock().unwrap().as_ref().unwrap(), db_name);
     let conn = Connection::open(render_db_name).unwrap();
     let render_query = format!("UPDATE identity SET {} = '{}' WHERE {} = '{}';", column, new_value, where_column, value);
     
@@ -391,10 +387,17 @@ fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &s
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if !Path::new(ACCOUNT_PATH).exists() {
-        fs::create_dir(ACCOUNT_PATH).expect("Failed to create directory");
-    }
     tauri::Builder::default()
+        .setup(|app| {
+            let path = app.path_resolver().app_data_dir().expect("Failed to get app data directory");
+            let path = path.join(".nostr_accounts/");
+            create_dir_all(&path).expect("Failed to create directory");
+            println!("Path: {:#?}", path);
+            let mut resolved_path = ACCOUNT_PATH.lock().unwrap();
+            *resolved_path = Some(path.to_str().unwrap().to_string());
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             read_file, 
             list_files,
@@ -415,6 +418,7 @@ async fn main() -> Result<()> {
             get_all_identities,
             update_identity_in_db,
             generate_id,
+            test_dir
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
