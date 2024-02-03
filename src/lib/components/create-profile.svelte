@@ -6,12 +6,16 @@
 	import { goto } from '$app/navigation';
 	import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 	import CloseIcon from '$lib/resources/icons/close-icon.svelte';
-	import { calculateXpubFromSeed, encrypt, generate_id, hexStringToUint8Array, insertInDb, mnemonics_from_seed, seed_from_mnemonics, uint8ArrayTo32HexString } from '$lib/resources/helpers';
+	import { calculateXpubFromSeed, encrypt, generate_id, hexStringToUint8Array, insertInDb, mine_id, mnemonics_from_seed, num_cpus, seed_from_mnemonics, truncateString, uint8ArrayTo32HexString } from '$lib/resources/helpers';
 	import { Accordion, AccordionItem } from '@skeletonlabs/skeleton';
 	import GearIcon from '$lib/resources/icons/gear-icon.svelte';
 	import * as zod from 'zod';
 	import { appContextStore, currentProfile } from '$lib/stores/stores';
 	import ProfileIcon from '$lib/resources/icons/profile-icon.svelte';
+	import { InputChip } from '@skeletonlabs/skeleton';
+	import { BECH32_CHARS } from '$lib/resources/constants';
+	import { onMount } from 'svelte';
+	import MiningIcon from '$lib/resources/icons/mining-icon.svelte';
 	
 	const toastStore = getToastStore();
 	let createNew: boolean = false;
@@ -54,8 +58,10 @@
 			if (nsec) {
 				if (!nsec.startsWith('nsec')) {
 					insecurePrvk = hexStringToUint8Array(nsec!);
+					mnemonics = await mnemonics_from_seed(nsec!);
 				} else {
 					insecurePrvk = nip19.decode(nsec!).data as Uint8Array;
+					mnemonics = await mnemonics_from_seed(uint8ArrayTo32HexString(insecurePrvk));
 				}
 			} else if (mnemonics) {
 				insecurePrvk = await seed_from_mnemonics(mnemonics);
@@ -131,7 +137,48 @@
 	function parseMnemonics(mnemonics: string): string[] {
 		return mnemonics.split(' ');
 	}
-	
+
+	let prefixList: string[] = [];
+	let maxCpus: number = 0
+	let cpusToUse: number = 1;
+	let mined_id: string[] = [];
+
+	async function mine(prefixes: string[], cores: number){
+		toastStore.trigger({
+			message: 'Mining',
+			background: ' variant-filled-primary'
+		})
+		setTimeout(async() => {
+			console.log("Mining", prefixes, cores)
+			mined_id = await mine_id(prefixes, cores);
+			nsec = mined_id[1];
+			console.log(mined_id)
+		}, 200)
+	}
+
+	async function count_cpus(): Promise<number> {
+		maxCpus = await num_cpus();
+		return maxCpus
+	}
+
+	function isValidPrefix(value: string): boolean {
+		let missingChars = '';
+		for (const char of value) {
+			if (!BECH32_CHARS.includes(char)) {
+			missingChars += char;
+			}
+		}
+		if (missingChars !== '') {
+			toastStore.trigger({
+					message: `The following characters are not valid: ${missingChars}`,
+					background: 'variant-filled-error'
+			})
+		}
+		return !missingChars || missingChars.length === 0;
+	}
+	onMount(async () => {
+		count_cpus();
+	})
 </script>
 
 {#if !createNew}
@@ -187,6 +234,41 @@
 							placeholder="Enter mnemonics"
 							bind:value={mnemonics}
 						/>
+					</svelte:fragment>
+				</AccordionItem>
+				<AccordionItem>
+					<svelte:fragment slot="lead"><MiningIcon size={18} /></svelte:fragment>
+					<svelte:fragment slot="summary">Mine id</svelte:fragment>
+					<svelte:fragment slot="content">
+						<p>Add a prefixes to mine</p>
+						<small>Prefixes only can cointain valid bech32 characters</small>
+						<InputChip bind:value={prefixList} name="chips" placeholder="Enter prefixes...(intro to push)" validation={isValidPrefix}/>	
+						{#if prefixList.length}
+							<label class="label"
+							> Cores to use?:
+							{cpusToUse}/{maxCpus}
+							<button type="button" class="common-btn-sm-filled w-fit" on:click={() => cpusToUse = maxCpus}>Max</button>
+
+							<input
+							type="range"
+								bind:value={cpusToUse}
+								max={maxCpus}
+								min=1
+							/>
+							</label>
+							
+							<button type="button" class="common-btn-sm-filled w-fit" on:click={() => { mine(prefixList, cpusToUse)}}>
+								<span><MiningIcon size={16} /></span>
+								<span>{mined_id.length ? 'Mine NEW' : 'Mine it'}</span>
+							</button>
+					
+							{#if mined_id.length}
+							<section class="card p-2">
+								<p>Mined npub:</p>
+								<code>{truncateString(mined_id[0], 16)}</code>
+							</section>	
+							{/if}
+						{/if}
 					</svelte:fragment>
 				</AccordionItem>
 			</Accordion>

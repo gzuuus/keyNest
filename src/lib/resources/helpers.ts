@@ -237,6 +237,16 @@ export async function generate_id(): Promise<id> {
 	return id;
 }
 
+export async function mine_id(prefixes: string[], cores: number): Promise<string[]> {
+	let id: string[] = await invoke('mine_id', { prefixes: prefixes, cores: cores })
+	return id;
+}
+
+export async function num_cpus(): Promise<number> {
+	let cpus: number = await invoke('count_cpus')
+	return cpus;
+}
+
 export async function mnemonics_from_seed(
 	seed: string
 ): Promise<string | undefined> {
@@ -324,8 +334,8 @@ export function uint8ArrayTo32HexString(uint8Array: Uint8Array): string {
 		.join('');
 }
 
-export function truncateString(str: string): string {
-	  return str.substring(0, 12) + ":" + str.substring(str.length - 6);
+export function truncateString(str: string, vanityLength:number=12): string {
+	  return str.substring(0, vanityLength) + ":" + str.substring(str.length - 6);
 }
 
 export function encodeSeedToNsec ( value: string): string {

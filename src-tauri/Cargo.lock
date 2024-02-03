@@ -111,6 +111,7 @@ dependencies = [
  "bitcoin 0.31.1",
  "magic-crypt",
  "nostr-sdk",
+ "num_cpus",
  "rusqlite",
  "serde",
  "serde_json",

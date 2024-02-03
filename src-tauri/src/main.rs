@@ -10,7 +10,7 @@ use std::io::Read;
 use std::path::Path;
 use std::fs::create_dir_all;
 use std::sync::Mutex;
-
+use num_cpus;
 // Nostr
 use nostr_sdk::prelude::*;
 use nostr::nips::nip06::{FromMnemonic, GenerateMnemonic};
@@ -385,6 +385,28 @@ fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &s
     }
 }
 
+// Nostr
+// TODO
+#[tauri::command]
+fn mine_id(prefixes: Vec<String>, cores: usize) -> Vec<String> {
+    let keys = Keys::vanity(prefixes, true, cores).unwrap();
+    let public_key = keys.public_key().to_bech32().unwrap();
+    // let seed = keys.secret_key().unwrap().display_secret().to_string();
+    let secret_key = keys.secret_key().unwrap().to_bech32().unwrap();
+
+    let result = vec![public_key, secret_key];
+    println!("Public key: {:?}", result);
+    result
+}
+
+#[tauri::command]
+fn count_cpus() -> usize {
+    let count = num_cpus::get();
+    println!("Number of CPUs: {}", count);
+    count
+}
+
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tauri::Builder::default()
@@ -418,7 +440,9 @@ async fn main() -> Result<()> {
             get_all_identities,
             update_identity_in_db,
             generate_id,
-            test_dir
+            test_dir,
+            mine_id,
+            count_cpus
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
