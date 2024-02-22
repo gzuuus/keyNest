@@ -18,9 +18,8 @@ tauri-build = { version = "1.5.1", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.5.4", features = ["api-all"] }
-nostr-sdk = "*"
+nostr = "0.28.1"
 tokio = { version = "1", features = ["full"] }
-magic-crypt = "3.1.13"
 bitcoin = { version = "0.31.1" }
 bip39 = "2.0.0"
 rusqlite = { version = "0.30.0", features = ["bundled", "modern_sqlite"] }

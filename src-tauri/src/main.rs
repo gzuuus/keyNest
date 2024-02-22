@@ -12,14 +12,11 @@ use std::fs::create_dir_all;
 use std::sync::Mutex;
 use num_cpus;
 // Nostr
-use nostr_sdk::prelude::*;
 use nostr::nips::nip06::{FromMnemonic, GenerateMnemonic};
 use nostr::nips::nip19::ToBech32;
-use nostr::Keys;
-
-// Encrypt
-use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-
+use nostr::{FromBech32, Keys};
+use nostr::SecretKey;
+use nostr::nips::nip49;
 // Bitcoin
 extern crate bitcoin;
 use std::str::FromStr;
@@ -90,17 +87,19 @@ fn list_files() -> Option<Vec<String>> {
  // Encrypt and decrypt
  #[tauri::command]
  fn encrypt_string(to_encrypt: &str, key: &str) -> String {
-    let mc = new_magic_crypt!(key, 256);
-    let cypher_text =mc.encrypt_str_to_base64(to_encrypt);
+    let seed = SecretKey::from_hex(to_encrypt).unwrap();
+    let cypher_text = nip49::EncryptedSecretKey::new(&seed, key, 16, nip49::KeySecurity::Unknown).unwrap().to_bech32().unwrap();
     cypher_text
  }
 
  #[tauri::command]
-fn decrypt_cypher(to_decrypt: &str, key: &str) -> Result<String, String> {
-    let mc = new_magic_crypt!(key, 256);
-    match mc.decrypt_base64_to_string(to_decrypt) {
-        Ok(plain_text) => Ok(plain_text),
-        Err(e) => Err(format!("Decryption failed: {}", e)),
+ fn decrypt_cypher(to_decrypt: &str, key: &str) -> Result<String, String> {
+    let encrypted_secret_key = nip49::EncryptedSecretKey::from_bech32(to_decrypt).unwrap();
+    let secret_key = nip49::EncryptedSecretKey::to_secret_key(encrypted_secret_key, key);
+
+    match secret_key {
+        Ok(sk) => Ok(sk.to_string()),   // Return plain text as a String
+        Err(err) => Err(format!("Failed to convert to SecretKey: {:?}", err))
     }
 }
 
@@ -198,7 +197,7 @@ fn mnemonic_from_seed(seed: &str) -> String {
 
 #[tauri::command]
 fn seed_from_mnemonic(mnemonic: &str, passphrase: Option<&str>) -> String {
-    let norm_mnemonic = Mnemonic::parse(mnemonic).unwrap();
+    let norm_mnemonic = Mnemonic::parse(mnemonic).expect(&format!("Invalid mnemonic"));
     let word_count = norm_mnemonic.word_count();
     match word_count {
         12 => {
