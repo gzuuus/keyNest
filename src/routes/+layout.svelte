@@ -5,7 +5,10 @@
 		AppRail,
 		AppRailAnchor,
 		Toast,
-		Modal
+		Modal,
+
+		AppBar
+
 	} from '@skeletonlabs/skeleton';
 	import HouseIcon from '$lib/resources/icons/house-icon.svelte';
 	import ProfileIcon from '$lib/resources/icons/profile-icon.svelte';
@@ -20,12 +23,14 @@
 <Modal />
 <AppShell>
 	<svelte:fragment slot="header">
-		<button on:click={() => goto('/')}>Home</button>
-		<button on:click={() => goto('/settings')}>Settings</button>
+		<AppBar padding="p-1">
+			<button class="hover:variant-soft px-2" on:click={() => goto('/')}>Home</button>
+			<button class="hover:variant-soft px-2" on:click={() => goto('/settings')}>Settings</button>
+		</AppBar>
 	</svelte:fragment>
 	<svelte:fragment slot="sidebarLeft">
 		{#if $appContextStore?.fileList?.length}
-			<AppRail >
+			<AppRail>
 				<AppRailAnchor href="/" selected={$page.url.pathname == '/'}>
 					<svelte:fragment slot="lead"><HouseIcon size={18} /></svelte:fragment>
 					<span>Home</span>

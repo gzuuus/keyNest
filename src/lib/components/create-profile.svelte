@@ -17,15 +17,17 @@
 	import { onMount } from 'svelte';
 	import MiningIcon from '$lib/resources/icons/mining-icon.svelte';
 	
-	const toastStore = getToastStore();
 	let createNew: boolean = false;
+
+	const toastStore = getToastStore();
 	let isValidForm: boolean = false;
 
 	const createAccFormSchema = zod.object({
 		name: zod.string().max(20, 'Name must be at most 20 characters long'),
 		pass: zod.string().min(6, 'Password must be at least 6 characters long'),
 		nsec: zod.string().optional(),
-		mnemonics: zod.string().optional()
+		mnemonics: zod.string().optional(),
+		log_n: zod.number().optional()
 	}).strict();
 
 	type FormDataable = zod.infer<typeof createAccFormSchema>;
@@ -36,12 +38,14 @@
 	let pass: string;
 	let nsec: string | undefined;
 	let mnemonics: string | undefined;
+	let log_n: number | undefined
 
 	interface ValidationErrors {
 		name?: string;
 		pass?: string;
 		nsec?: string;
 		mnemonics?: string;
+		log_n? : number
 	}
 	let validationErrors:ValidationErrors = {};
 
@@ -51,9 +55,10 @@
 				name,
 				pass,
 				nsec,
-				mnemonics
+				mnemonics,
+				log_n
 			});
-
+			console.log(formData);
 			let insecurePrvk;
 			if (nsec) {
 				if (!nsec.startsWith('nsec')) {
@@ -72,7 +77,7 @@
 				mnemonics = newId.mnemonic;
 			}
 			const hexpub = getPublicKey(insecurePrvk);
-			const encryptedNsec = await encrypt(uint8ArrayTo32HexString(insecurePrvk), pass);
+			const encryptedNsec = await encrypt(uint8ArrayTo32HexString(insecurePrvk), pass, log_n);
 			const xpub = await calculateXpubFromSeed(uint8ArrayTo32HexString(insecurePrvk));
 			const extendedFormData: ProfileInterface = {
 				name,
@@ -144,20 +149,20 @@
 	let mined_id: string[] = [];
 
 	async function mine(prefixes: string[], cores: number){
-		toastStore.trigger({
+		let toastId = toastStore.trigger({
 			message: 'Mining',
-			background: ' variant-filled-primary'
+			background: ' variant-filled-primary',
+			autohide: false
 		})
-		setTimeout(async() => {
 			console.log("Mining", prefixes, cores)
 			mined_id = await mine_id(prefixes, cores);
 			nsec = mined_id[1];
-			console.log(mined_id)
-		}, 200)
-	}
+			toastStore.close(toastId);
+		}
 
 	async function count_cpus(): Promise<number> {
 		maxCpus = await num_cpus();
+		cpusToUse = maxCpus;
 		return maxCpus
 	}
 
@@ -190,7 +195,7 @@
 	</section>
 {:else}
 	
-	<section class=" flex flex-col gap-1 items-end">
+	<section class=" flex flex-col gap-1 items-end max-w-sm">
 		{#if !isValidForm}
 		<button class="common-btn-icon-ghost" on:click={() => (createNew = false)}
 			><CloseIcon size={16} /></button
@@ -233,6 +238,14 @@
 							type="text"
 							placeholder="Enter mnemonics"
 							bind:value={mnemonics}
+						/>
+						<label class="label"
+						>Log_n: <small class=" opacity-40">the higher the safest, but takes longer to compute</small>
+						<input
+							class="input"
+							type="number"
+							placeholder="16, 18, 22, ...(recommended >= 16)"
+							bind:value={log_n}
 						/>
 					</svelte:fragment>
 				</AccordionItem>

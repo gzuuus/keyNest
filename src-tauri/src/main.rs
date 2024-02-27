@@ -29,6 +29,8 @@ use bitcoin::secp256k1::Secp256k1;
 // DB
 use rusqlite::{Connection, Result};
 
+use tokio::task;
+
 static ACCOUNT_PATH: Mutex<Option<String>> = Mutex::new(None);
 
 // FS
@@ -86,21 +88,28 @@ fn list_files() -> Option<Vec<String>> {
 
  // Encrypt and decrypt
  #[tauri::command]
- fn encrypt_string(to_encrypt: &str, key: &str) -> String {
-    let seed = SecretKey::from_hex(to_encrypt).unwrap();
-    let cypher_text = nip49::EncryptedSecretKey::new(&seed, key, 16, nip49::KeySecurity::Unknown).unwrap().to_bech32().unwrap();
-    cypher_text
- }
+ async fn encrypt_string(to_encrypt: &str, key: &str, n: Option<u8>) -> Result<String, ()> {
+    let n = n.unwrap_or(16);
+    let seed = SecretKey::from_hex(to_encrypt).map_err(|_| ())?;
+    let cypher_text = nip49::EncryptedSecretKey::new(
+        &seed,
+        key,
+        n,
+        nip49::KeySecurity::Unknown,
+    )
+    .map_err(|_| ())?
+    .to_bech32()
+    .map_err(|_| ())?;
+
+    Ok(cypher_text)
+}
 
  #[tauri::command]
- fn decrypt_cypher(to_decrypt: &str, key: &str) -> Result<String, String> {
-    let encrypted_secret_key = nip49::EncryptedSecretKey::from_bech32(to_decrypt).unwrap();
-    let secret_key = nip49::EncryptedSecretKey::to_secret_key(encrypted_secret_key, key);
+ async fn decrypt_cypher(to_decrypt: &str, key: &str) -> Result<String, String> {
+    let encrypted_secret_key = nip49::EncryptedSecretKey::from_bech32(to_decrypt).map_err(|err| format!("Failed to parse Bech32: {:?}", err))?;
+    let secret_key = nip49::EncryptedSecretKey::to_secret_key(encrypted_secret_key, key).map_err(|err| format!("Failed to convert to SecretKey: {:?}", err))?;
 
-    match secret_key {
-        Ok(sk) => Ok(sk.to_string()),   // Return plain text as a String
-        Err(err) => Err(format!("Failed to convert to SecretKey: {:?}", err))
-    }
+    Ok(secret_key.to_string())
 }
 
 // Derivation
@@ -385,17 +394,23 @@ fn update_identity_in_db(db_name: &str, column: &str, value: &str, new_value: &s
 }
 
 // Nostr
-// TODO
 #[tauri::command]
-fn mine_id(prefixes: Vec<String>, cores: usize) -> Vec<String> {
-    let keys = Keys::vanity(prefixes, true, cores).unwrap();
-    let public_key = keys.public_key().to_bech32().unwrap();
-    // let seed = keys.secret_key().unwrap().display_secret().to_string();
-    let secret_key = keys.secret_key().unwrap().to_bech32().unwrap();
+async fn mine_id(prefixes: Vec<String>, cores: usize) -> Result<Vec<String>, String> {
+    let handle = task::spawn_blocking(move || {
+        let keys = match Keys::vanity(prefixes, true, cores) {
+            Ok(keys) => keys,
+            Err(err) => return Err(format!("Error mining ID: {:?}", err)),
+        };
 
-    let result = vec![public_key, secret_key];
-    println!("Public key: {:?}", result);
-    result
+        let public_key = keys.public_key().to_bech32().unwrap();
+        let secret_key = keys.secret_key().unwrap().to_bech32().unwrap();
+        Ok(vec![public_key, secret_key])
+    });
+
+    match handle.await {
+        Ok(result) => Ok(result?),
+        Err(err) => Err(format!("Error mining ID: {:?}", err)),
+    }
 }
 
 #[tauri::command]

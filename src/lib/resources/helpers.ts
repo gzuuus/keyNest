@@ -122,8 +122,10 @@ export async function listFiles(): Promise<string[] | undefined> {
 	}
 }
 
-export async function encrypt(to_encrypt: string, key: string): Promise<string> {
-	let encrypted: string = await invoke('encrypt_string', { toEncrypt: to_encrypt, key: key });
+export async function encrypt(to_encrypt: string, key: string, log_n?: number): Promise<string> {
+	let encrypted: string= log_n
+	? await invoke('encrypt_string', { toEncrypt: to_encrypt, key: key, n: log_n })
+	: await invoke('encrypt_string', { toEncrypt: to_encrypt, key: key });
 	return encrypted;
 }
 
