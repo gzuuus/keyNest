@@ -7,7 +7,7 @@
 		"distDir": "../build"
 	},
 	"package": {
-		"productName": "nostr-identity-vault",
+		"productName": "keyNest",
 		"version": "0.1.0"
 	},
 	"tauri": {
